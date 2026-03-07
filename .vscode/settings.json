@@ -1,0 +1,24 @@
+{
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}",
+    "${workspaceFolder}/rag",
+    "${workspaceFolder}/rag/rag",
+    "${workspaceFolder}/backend"
+  ],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none",
+    "reportUnusedImport": "warning"
+  },
+  "python.autoComplete.extraPaths": [
+    "${workspaceFolder}",
+    "${workspaceFolder}/rag",
+    "${workspaceFolder}/rag/rag",
+    "${workspaceFolder}/backend"
+  ],
+  "python.analysis.typeCheckingMode": "off",
+  "pylint.args": [
+    "--init-hook",
+    "import sys; sys.path.insert(0, '${workspaceFolder}'); sys.path.insert(0, '${workspaceFolder}/rag')"
+  ]
+}

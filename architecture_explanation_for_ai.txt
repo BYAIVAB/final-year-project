@@ -1,0 +1,80 @@
+# Medical RAG Chatbot - Codebase Architecture and Working
+
+This document contains a comprehensive explanation of the folder structure, core components, and operational flow for the Medical RAG Chatbot. It is written to provide AI models (and human developers) with a clear understanding of how the system works.
+
+## 1. High-Level Architecture Overview
+
+The application is built on three main pillars:
+1. **Frontend (`/frontend`)**: A React/Vite-based User Interface managing the presentation logic, chat UI, uploaded files interface, and state management.
+2. **Backend (`/backend`)**: A FastAPI Python backend that acts as the orchestration layer between the frontend, the RAG engine, and the databases.
+3. **RAG Engine (`/rag`)**: A dedicated module responsible for text extraction, chunking, embedding generation, vector search, and communicating with the LLM (Ollama).
+
+### External Dependencies
+* **MongoDB**: Used for persistent storage of conversational history. 
+* **Pinecone**: Operating as the Vector Database (dimensions: 384, metric: cosine) where document embeddings are stored and vector similarity searches are performed.
+* **Ollama (llama2)**: A local Inference Engine (LLM) serving the models used to generate conversational responses.
+
+---
+
+## 2. Directory and File Breakdown
+
+### `/backend` - FastAPI Orchestration Layer
+This directory contains the main orchestration API server.
+* **`app/main.py`**: The entrypoint for the FastAPI application. Sets up middleware, CORS, and hooks up the routers. It initializes connections to Pinecone, MongoDB, and embedding models.
+* **`app/config.py`**: Loads environment variables (`.env`) for configuring the backend server (e.g., Pinecone API keys, MongoDB URLs).
+* **`app/api/`**: The routing layer containing endpoint definitions.
+   * *Endpoints handle actions such as*: `/api/chat` (message generation), `/api/conversations` (fetching/deleting history), `/api/documents/upload` (handling PDF uploads).
+* **`app/models/`**: Defines Pydantic data schemas used for validation of incoming API requests and outgoing responses.
+* **`app/services/`**: The business logic connecting the API endpoints to the RAG engine functions. E.g., handling the coordination between updating the MongoDB history and querying Pinecone.
+* **`requirements.txt` / `venv/`**: Specifies and holds standard Python dependencies (FastAPI, Motor for async MongoDB, PyMuPDF, Pinecone client).
+
+### `/rag` - The Retrieval-Augmented Generation Engine
+Extracted into a standalone Python package to encapsulate the AI/ML logic, making it maintainable and potentially reusable.
+* **`src/`**: Contains the core logic for the RAG operations.
+   * **Text Processing**: Utilizes `PyMuPDF` (optimized for speed over standard `pypdf2`) to extract text from PDFs. Includes `pytesseract` as an OCR fallback for image-based PDFs.
+   * **Chunking**: Uses `langchain` text splitters to split documents into smaller chunks (chunk size typically 500 characters, overlap 50).
+   * **Embedding Generation**: Batch processes text chunks (batch size 32) using `sentence-transformers` (specifically `all-MiniLM-L6-v2`) to generate vector representations. Optimized to run on CPU or CUDA if a GPU is available.
+* **`vectorstore/`**: Abstraction over the Pinecone vector database. Handles inserting chunks and retrieving the top-K most relevant chunks during a search.
+* **`retrieval/`**: The "Dual Retriever" logic. Coordinates returning a combined context compiled from the most relevant uploaded document chunks (Top 3) *and* the most relevant past conversation memory (Top 2).
+* **`config.py`**: RAG-specific speed optimization configs (chunk sizes, LLM max tokens, embedding batch sizes).
+* **`setup.py`**: Makes the `rag` folder installable as a Python package (`pip install -e .`).
+
+### `/frontend` - React User Interface
+A modern frontend using the "ARC AGI" theme. Look and feel involves dark navy backgrounds and monospace fonts. 
+* **`src/components/`**: React functional components. Contains logic for the chat message bubbles, typing indicators, grid background, and upload modals required for PDF parsing.
+* **`src/store/`**: Centralized state management using `Zustand`. Holds the current list of messages, connection status, and conversation ID.
+* **`src/services/`**: API fetching utilities (using `Axios`) to communicate with the FastAPI backend.
+* **`src/hooks/`**: Custom React hooks handling business logic (like reacting to sound triggers or keeping track of scroll positions).
+* **`vite.config.js` / `package.json`**: Build configuration and npm dependencies mapping.
+
+---
+
+## 3. Core Operational Flows
+
+### A. Document Upload Flow (Ingestion)
+1. **Frontend Action**: User uploads a PDF via the UI.
+2. **Backend API**: The `/api/documents/upload` endpoint receives the file and temporarily saves it to `./uploads`.
+3. **Extraction (`/rag/src`)**: The `rag` package reads the PDF via `PyMuPDF`, extracting text.
+4. **Chunking & Embedding**: LangChain splits the text into chunks. `sentence-transformers` generates vector embeddings in batches of 32 for optimal speed.
+5. **Storage**: The vector embeddings and metadata (document IDs, original text) are pushed to the **Pinecone** index (`medical-rag`).
+
+### B. Conversational / Chat Flow (Retrieval & Generation)
+1. **Frontend Action**: User sends a query (e.g., "What are symptoms of diabetes?").
+2. **Backend API**: The query hits `/api/chat` with the current `conversation_id`.
+3. **Memory Retrieval**: The backend pulls the "Conversational Buffer Memory" (last 10 messages of the conversation) from **MongoDB**.
+4. **Vector Retrieval**: The query is embedded using `sentence-transformers`. The RAG engine performs a semantic layout search in **Pinecone** to fetch two sets of records:
+   - relevant past conversation messages (Top 2).
+   - relevant document chunks (Top 3).
+5. **Prompt Assembly**: The retrieved documents, relevant chat history, and immediate buffer memory are compiled into a singular robust prompt.
+6. **LLM Generation**: The assembled prompt is passed to the local **Ollama (llama2)** instance.
+7. **Response Delivery**: The generated text is yielded back. The backend saves the new User Query + AI Response pair to **MongoDB** (for buffer memory) and to **Pinecone** (for semantic retrieval).
+8. **Frontend Display**: UI updates with the generated text, including simulated typing effects and sound triggers.
+
+---
+
+## 4. Optimization Strategies Implemented
+The codebase is structured to prioritize raw speed and low latency:
+* **Async Everything**: FastAPI, Motor (MongoDB), and network requests are asynchronous, freeing up thread pools.
+* **PDF Subsystem**: Replacing generic libraries with `PyMuPDF` results in ~3x faster document ingestion out of the box.
+* **Model Locality**: Utilizing a Local LLM (`llama2` via Ollama) removes remote network latency for generation, trading compute for guaranteed speed and privacy. 
+* **Reduced Document Context**: Strict limits on Top-K retrieval (3 docs + 2 chat blocks) ensure the LLM's context window isn't bloated, meaning fewer tokens to synthesize and faster local response generation time (optimally 3-4s total).

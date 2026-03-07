@@ -1,0 +1,124 @@
+# # FastAPI & Web Server (Async for speed)
+# fastapi==0.115.0
+# uvicorn[standard]==0.34.0
+# python-multipart==0.0.20
+
+# # MongoDB (Async driver for speed)
+# motor==3.6.0
+# pymongo==4.9.2
+
+# # Pinecone Vector DB# ---------- Web ----------
+# fastapi==0.115.0
+# uvicorn[standard]==0.34.0
+# python-multipart==0.0.20
+
+# # ---------- Mongo ----------
+# motor==3.6.0
+# pymongo==4.9.2
+
+# # ---------- LangChain ----------
+# langchain==0.3.26
+# langchain-community==0.3.26
+# langchain-pinecone==0.2.8
+
+# # ---------- Vector DB (CORRECT) ----------
+# pinecone-client>=6.0.0,<8.0.0
+
+# # ---------- Embeddings ----------
+# sentence-transformers==4.1.0
+# torch==2.4.0
+# transformers==4.47.1
+
+# # ---------- PDF / OCR ----------
+# PyMuPDF==1.24.0
+# pypdf==5.6.1
+# pytesseract==0.3.13
+# pdf2image==1.17.0
+# Pillow==10.4.0
+
+# # ---------- Utils ----------
+# requests==2.32.3
+# python-dotenv==1.1.0
+# numpy==1.26.4
+# orjson==3.10.12
+# structlog==24.4.0
+# pinecone==6.3.0
+
+# # Pydantic (Validation)
+# pydantic==2.10.3
+# pydantic-settings==2.6.1
+
+# # Environment & Utils
+# python-dotenv==1.1.0
+# aiofiles==24.1.0
+
+# # CORS & Security
+# python-jose[cryptography]==3.3.0
+
+# # Logging
+# structlog==24.4.0
+
+# # Local RAG module (relative import)
+# -e ../rag
+
+# =========================
+# Web Framework
+# =========================
+fastapi==0.115.0
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+aiofiles==24.1.0
+
+# =========================
+# MongoDB (Async)
+# =========================
+motor==3.6.0
+pymongo==4.9.2
+
+# =========================
+# Validation & Settings
+# =========================
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.1.0
+
+# =========================
+# Security / Auth
+# =========================
+python-jose[cryptography]==3.3.0
+
+# =========================
+# LangChain Core
+# =========================
+langchain==0.3.26
+langchain-community==0.3.26
+langchain-pinecone==0.2.8
+
+# =========================
+# Vector Database (IMPORTANT)
+# =========================
+# pinecone>=7.0.0
+pinecone>=5.0.0,<6.0.0I
+# =========================
+# Embeddings / ML
+# =========================I
+sentence-transformers==4.1.0
+# torch==2.3.1
+transformers==4.47.1
+numpy==1.26.4
+
+# =========================
+# PDF + OCR
+# =========================
+PyMuPDF==1.24.0
+pypdf==5.6.1
+pytesseract==0.3.13
+pdf2image==1.17.0
+Pillow==10.4.0
+
+# =========================
+# HTTP / Utils
+# =========================
+requests==2.32.3
+orjson==3.10.12
+structlog==24.4.0

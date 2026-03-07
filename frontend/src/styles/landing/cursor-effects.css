@@ -1,0 +1,54 @@
+/* Base classes for Cursor Interactions */
+
+.glass-card {
+  background: rgba(10, 14, 39, 0.4);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(59, 130, 246, 0.15);
+}
+
+.magnetic-card {
+  transition: transform 0.1s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.magnetic-card--active {
+  z-index: 10;
+}
+
+/* Ripple Click Effect */
+@keyframes ripple-animation {
+  from {
+    opacity: 1;
+    transform: scale(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(30); /* Ensures it covers big buttons */
+  }
+}
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: ripple-animation 0.8s linear;
+}
+
+/* Perspective Tilt Cards */
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+/* Gradient text utilities for the landing page */
+.bg-clip-text {
+  -webkit-background-clip: text;
+  background-clip: text;
+}

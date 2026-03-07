@@ -1,0 +1,15 @@
+{
+  "include": ["backend", "rag"],
+  "extraPaths": [
+    ".",
+    "./rag",
+    "./rag/rag",
+    "./backend"
+  ],
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportUnusedImport": "none",
+  "pythonVersion": "3.11",
+  "venvPath": ".",
+  "typeCheckingMode": "off"
+}
