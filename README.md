@@ -1350,4 +1350,43 @@ cd frontend && npm run dev
 
 ---
 
+## TROUBLESHOOTING GUIDE
+
+### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| `ModuleNotFoundError: No module named 'rag'` | `cd rag && pip install -e .` |
+| Pinecone initialization failed | Verify API key, index name (`medical-rag`), dimension (`384`) |
+| MongoDB connection refused | Start MongoDB: `mongod` |
+| Ollama 500 error | Verify model: `ollama list`, test: `ollama run tinyllama "test"` |
+| CORS errors | Check `CORS_ORIGINS` in `.env` includes frontend URL |
+| Pylance import errors | Select correct interpreter: `backend/venv/Scripts/python.exe` |
+
+### Verifying Ollama Setup
+```cmd
+ollama list                      # Show installed models
+ollama run tinyllama "Hello"     # Test generation
+ollama ps                        # Show running models
+```
+
+---
+
+## CHANGELOG
+
+### v1.0.0 (Initial Release)
+- Full-stack RAG chatbot implementation
+- PDF document upload and processing
+- Conversational buffer memory (10 messages)
+- Dual retrieval system (documents + chat history)
+- Real-time analytics dashboard
+- Modern React UI with ARC AGI theme
+
+### Files Added
+- `PPT_CONTENT.md` - Presentation content for project demonstration
+- `QUICK_START.md` - Step-by-step Windows setup guide
+- `pyrightconfig.json` - Python IDE configuration
+
+---
+
 *This documentation was generated to provide complete context for AI/LLM systems working with this codebase.*

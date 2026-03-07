@@ -249,9 +249,22 @@ ollama serve   # Start Ollama in a terminal
 ollama pull tinyllama   # Pull the model
 ```
 
+### "500 Server Error on /api/generate (Ollama)"
+1. Verify Ollama is running: `ollama list`
+2. Test model directly: `ollama run tinyllama "Hello"`
+3. Check model name in `.env` matches exactly: `OLLAMA_MODEL=tinyllama`
+4. Try a different model: `ollama pull llama2` then update `.env`
+
 ### "Frontend can't connect to backend"
 - Ensure backend is running on port 8000
 - Check CORS_ORIGINS in `backend/.env` includes `http://localhost:5173`
+
+### Pylance Import Errors in VS Code
+These are IDE warnings, not runtime errors. The code runs correctly.
+To fix, select the correct Python interpreter:
+1. Press `Ctrl+Shift+P`
+2. Type "Python: Select Interpreter"
+3. Choose `backend/venv/Scripts/python.exe`
 
 ---
 
@@ -269,31 +282,72 @@ ollama pull tinyllama   # Pull the model
 
 ```
 final-year-project/
-├── backend/           # FastAPI Backend
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py
-│   │   ├── api/       # Route handlers
-│   │   └── services/  # Business logic
-│   └── requirements.txt
 │
-├── rag/               # RAG Engine Module
-│   ├── rag/
-│   │   ├── src/       # Core logic
-│   │   ├── vectorstore/
-│   │   └── retrieval/
-│   └── setup.py
+├── backend/                    # FastAPI Backend Server
+│   ├── requirements.txt        # Python dependencies
+│   ├── .env                    # Environment config (create this)
+│   ├── uploads/                # Temporary PDF storage
+│   └── app/
+│       ├── main.py             # FastAPI app entry point
+│       ├── config.py           # Pydantic settings (loads .env)
+│       ├── api/                # API Route Handlers
+│       │   ├── chat.py         # POST /api/chat
+│       │   ├── conversations.py
+│       │   ├── documents.py    # POST /api/documents/upload
+│       │   ├── health.py       # GET /api/health
+│       │   └── metrics.py
+│       ├── services/           # Business Logic
+│       │   ├── chat_service.py # RAG pipeline orchestration
+│       │   ├── document_service.py
+│       │   ├── mongodb_service.py
+│       │   └── metrics_service.py
+│       └── models/             # Pydantic schemas
 │
-├── frontend/          # React Frontend
-│   ├── src/
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── pages/
-│   │   └── services/
-│   └── package.json
+├── rag/                        # RAG Engine Module (pip install -e .)
+│   ├── setup.py                # Package setup
+│   ├── requirements.txt
+│   └── rag/
+│       ├── config.py           # RAGConfig class
+│       ├── src/                # Core RAG Logic
+│       │   ├── helper.py       # EmbeddingGenerator, OllamaClient
+│       │   ├── document_processor.py  # PDF extraction + chunking
+│       │   ├── memory.py       # Conversation buffer
+│       │   └── prompt.py       # Prompt templates
+│       ├── vectorstore/
+│       │   └── pinecone_store.py  # Vector DB operations
+│       └── retrieval/
+│           └── retriever.py    # Dual retriever (docs + chat)
 │
-├── README.md          # Full Documentation
-└── QUICK_START.md     # This file
+├── frontend/                   # React Frontend (Vite + TailwindCSS)
+│   ├── package.json            # NPM dependencies
+│   ├── vite.config.js          # Vite bundler + proxy config
+│   ├── tailwind.config.js      # Theme configuration
+│   ├── index.html
+│   └── src/
+│       ├── main.jsx            # React entry point
+│       ├── App.jsx             # Route definitions
+│       ├── components/         # Reusable UI components
+│       │   ├── Chat/           # ChatContainer, MessageInput, etc.
+│       │   ├── Layout/         # MainLayout, GridBackground
+│       │   ├── Sidebar/        # Conversation list
+│       │   └── Upload/         # PDF upload modal
+│       ├── pages/              # Page components
+│       │   ├── landing/        # LandingPage.jsx
+│       │   ├── chat/           # ChatPage.jsx
+│       │   └── dashboard/      # DashboardPage.jsx
+│       ├── hooks/              # Custom React hooks
+│       │   ├── useChat.js      # Chat logic
+│       │   ├── useConversations.js
+│       │   └── useDocuments.js
+│       └── services/           # API service functions
+│           ├── api.js          # Axios instance
+│           └── chatService.js
+│
+├── README.md                   # Full documentation
+├── QUICK_START.md              # This file
+├── PPT_CONTENT.md              # Presentation content
+├── pyrightconfig.json          # Python IDE config
+└── .gitignore                  # Git exclusions
 ```
 
 ---
