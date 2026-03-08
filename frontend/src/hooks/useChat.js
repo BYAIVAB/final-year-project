@@ -63,10 +63,9 @@ export const useChat = (conversationId) => {
       // CHECK FOR BOOKING INTENT
       // ============================================
       if (response.metadata?.intent === 'booking') {
-        console.log('🎯 Booking intent detected:', response.metadata)
-        
         // Start booking flow in appointment store
-        startBooking(response.metadata.extracted_slots)
+        const slotsToPass = response.metadata.extracted_slots || { specialty: response.metadata.specialty }
+        startBooking(slotsToPass)
       }
 
       // Add assistant response

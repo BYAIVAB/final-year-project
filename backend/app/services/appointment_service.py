@@ -232,6 +232,7 @@ class AppointmentService:
             "provider_name": provider_name,
             "specialty": specialty,
             "datetime": slot_datetime,
+            "slot_id": slot_id,
             "duration_minutes": 30,
             "timezone": "America/New_York",
             "patient_info": {
@@ -245,6 +246,8 @@ class AppointmentService:
             "booking_mode": booking_mode,
             "external_booking_id": external_booking_id,
             "address": address,
+            "provider_rating": provider.get("rating", 4.5) if is_dummy and provider else 4.5,
+            "provider_phone": provider.get("phone", "") if is_dummy and provider else "",
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
             "expires_at": slot_datetime + timedelta(days=30)  # TTL
@@ -255,21 +258,41 @@ class AppointmentService:
         
         logger.info(f"Appointment booked: {appointment_id} for {patient_info.get('name')}")
         
-        # Return confirmation
+        # Get additional provider details for response
+        provider_rating = 4.5
+        provider_phone = ""
+        provider_photo_url = f"https://i.pravatar.cc/150?u={provider_id}"
+        
+        if is_dummy and provider:
+            provider_rating = provider.get("rating", 4.5)
+            provider_phone = provider.get("phone", "")
+            provider_photo_url = provider.get("photo_url", provider_photo_url)
+        
+        # Return COMPLETE confirmation for frontend persistence
         return {
             "appointment_id": appointment_id,
             "confirmation_code": confirmation_code,
             "status": "confirmed",
+            "datetime": slot_datetime.isoformat(),
+            "provider_id": provider_id,
+            "provider_name": provider_name,
+            "specialty": specialty,
             "provider": {
                 "provider_id": provider_id,
                 "name": provider_name,
                 "specialty": specialty,
-                "address": address
+                "location": address,
+                "address": address,
+                "phone": provider_phone,
+                "rating": provider_rating,
+                "photo_url": provider_photo_url
             },
             "appointment_details": {
                 "datetime": slot_datetime.isoformat(),
+                "duration": 30,
                 "duration_minutes": 30,
-                "timezone": "America/New_York"
+                "timezone": "America/New_York",
+                "slot_id": slot_id
             },
             "patient_info": patient_info,
             "created_at": appointment["created_at"].isoformat()
@@ -283,6 +306,7 @@ class AppointmentService:
     ) -> List[Dict]:
         """
         Get appointments for anonymous user
+        Returns COMPLETE appointment details for frontend persistence
         
         Args:
             session_fingerprint: Browser/session identifier
@@ -290,7 +314,7 @@ class AppointmentService:
             limit: Max number of appointments to return
             
         Returns:
-            List of appointments
+            List of appointments with full details
         """
         query = {"session_fingerprint": session_fingerprint}
         if status:
@@ -305,11 +329,26 @@ class AppointmentService:
                 "appointment_id": apt["appointment_id"],
                 "confirmation_code": apt["confirmation_code"],
                 "status": apt["status"],
+                "datetime": apt["datetime"].isoformat() if isinstance(apt["datetime"], datetime) else apt["datetime"],
+                "provider_id": apt["provider_id"],
                 "provider_name": apt["provider_name"],
                 "specialty": apt["specialty"],
-                "datetime": apt["datetime"].isoformat(),
-                "address": apt.get("address"),
-                "created_at": apt["created_at"].isoformat()
+                "provider": {
+                    "provider_id": apt["provider_id"],
+                    "name": apt["provider_name"],
+                    "specialty": apt["specialty"],
+                    "location": apt.get("address", "Virtual Clinic"),
+                    "address": apt.get("address", "Virtual Clinic"),
+                    "phone": apt.get("provider_phone", ""),
+                    "rating": apt.get("provider_rating", 4.5)
+                },
+                "appointment_details": {
+                    "datetime": apt["datetime"].isoformat() if isinstance(apt["datetime"], datetime) else apt["datetime"],
+                    "duration": apt.get("duration_minutes", 30),
+                    "slot_id": apt.get("slot_id", "")
+                },
+                "patient_info": apt.get("patient_info", {}),
+                "created_at": apt["created_at"].isoformat() if isinstance(apt.get("created_at"), datetime) else str(apt.get("created_at", ""))
             }
             for apt in appointments
         ]

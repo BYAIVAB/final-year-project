@@ -55,18 +55,23 @@ async def send_message(request: ChatRequest):
         # Build metadata if booking intent detected
         metadata = None
         if result.get("metadata"):
+            logger.info(f"📋 Building metadata from: {result['metadata']}")
             metadata = ChatResponseMetadata(
                 intent=result["metadata"].get("intent"),
                 extracted_slots=result["metadata"].get("extracted_slots")
             )
+            logger.info(f"📋 Built ChatResponseMetadata: intent={metadata.intent}, extracted_slots={metadata.extracted_slots}")
         
-        return ChatResponse(
+        response = ChatResponse(
             message_id=result["message_id"],
             response=result["response"],
             sources=sources,
             timing=result["timing"],
             metadata=metadata
         )
+        
+        logger.info(f"📨 Returning response with metadata: {response.metadata}")
+        return response
         
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)

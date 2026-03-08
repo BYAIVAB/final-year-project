@@ -2350,6 +2350,76 @@ ollama ps                        # Show running models
 
 ## CHANGELOG
 
+### v2.2.0 (Appointment Persistence & Landing Page Integration)
+- **NEW: Appointments persist after page refresh** - Uses Zustand persist middleware with localStorage
+- **NEW: Complete appointment details returned from API** - Backend now returns full provider snapshot, patient info, and appointment details
+- **NEW: Enhanced landing page appointments section** - Displays upcoming appointments with reminders
+- **IMPROVED: Calendar export (.ics)** - Download appointments directly to calendar apps
+- **IMPROVED: 24-hour reminder banner** - Visual alert for appointments within 24 hours
+- **IMPROVED: Cancel appointments** - Direct cancellation from landing page with store sync
+- **FIX: API response structure standardized** - Consistent `provider`, `appointment_details`, and `patient_info` objects
+
+**Backend Files Modified:**
+- `app/services/appointment_service.py`:
+  - `book_appointment()` now returns complete provider details (name, specialty, location, rating, phone, photo_url)
+  - `get_appointments()` returns full appointment structure matching frontend expectations
+  - Appointment document now stores `slot_id`, `provider_rating`, `provider_phone` for full persistence
+
+**Frontend Files Modified:**
+- `store/appointmentStore.js`:
+  - Changed localStorage key to `medical-appointments-storage`
+  - Added `loading` state for UI feedback
+  - Clean separation of persisted (appointments) vs transient (booking flow) state
+  
+- `hooks/useBooking.js`:
+  - Wrapped all functions with `useCallback` for memoization
+  - `bookAppointment()` now adds directly to persisted store via `addAppointment()`
+  - `cancelAppointment()` removes from persisted store via `removeAppointment()`
+  - Removed redundant `loadAppointments()` call after booking (already added to store)
+  
+- `services/appointmentService.js`:
+  - Standardized API signatures to accept single params object
+  - `searchProviders(params)` - accepts `{conversation_id, specialty, city, latitude, longitude}`
+  - `bookAppointment(bookingData)` - accepts `{conversation_id, provider_id, slot_id, slot_datetime, patient_info}`
+  - `cancelAppointment(appointmentId, cancelData)` - accepts `{confirmation_code, reason}`
+  
+- `components/Chat/ChatContainer.jsx`:
+  - Updated `handlePatientInfoSubmit()` to use markdown formatting in confirmation message
+  - Reads appointment data from response (not local state) for accurate display
+  - Syncs with backend after booking via `loadAppointments()`
+
+**Persistence Architecture:**
+```javascript
+// localStorage structure
+{
+  "state": {
+    "appointments": [
+      {
+        "appointment_id": "apt_abc123",
+        "confirmation_code": "CARD-1234",
+        "status": "confirmed",
+        "datetime": "2026-03-15T10:00:00Z",
+        "provider": {
+          "provider_id": "dummy_card001",
+          "name": "Dr. John Smith",
+          "specialty": "Cardiology",
+          "location": "Boston Medical Center",
+          "rating": 4.8
+        },
+        "patient_info": {...}
+      }
+    ]
+  },
+  "version": 0
+}
+```
+
+**Testing Verification:**
+```javascript
+// Check persistence in browser console
+console.log(JSON.parse(localStorage.getItem('medical-appointments-storage')));
+```
+
 ### v2.1.0 (Booking Flow Fixes)
 - **FIX: Replaced LLM-based intent detection with keyword regex patterns** - Much faster and more reliable
 - **FIX: Removed prompt leaking** - Added clean_llm_response() to strip system prompt artifacts

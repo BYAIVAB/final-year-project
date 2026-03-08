@@ -46,15 +46,11 @@ function ChatContainer({ compactMode = false }) {
     loading: bookingLoading,
     searchProviders,
     getProviderSlots,
-    bookAppointment
+    bookAppointment,
+    loadAppointments
   } = useBooking(currentConversationId)
 
   const [confirmedAppointment, setConfirmedAppointment] = useState(null)
-
-  // Debug logging
-  useEffect(() => {
-    console.log('📋 Booking state:', { bookingInProgress, bookingStep, extractedSlots })
-  }, [bookingInProgress, bookingStep, extractedSlots])
 
   // ============================================
   // Booking Flow Handlers
@@ -99,7 +95,7 @@ function ChatContainer({ compactMode = false }) {
   }, [selectSlot])
 
   const handlePatientInfoSubmit = useCallback(async (info) => {
-    console.log('📝 Patient info submitted:', info)
+    console.log('✍️ Submitting patient info:', info)
     updatePatientInfo(info)
     
     try {
@@ -107,9 +103,10 @@ function ChatContainer({ compactMode = false }) {
       
       console.log('📅 Booking appointment:', { provider: selectedProvider?.name, slot: selectedSlot?.datetime })
       
+      // Book the appointment
       const appointment = await bookAppointment(
         selectedProvider.provider_id,
-        selectedSlot.slot_id,
+        selectedSlot.slot_id || String(Date.now()),
         selectedSlot.datetime,
         info
       )
@@ -118,26 +115,32 @@ function ChatContainer({ compactMode = false }) {
       setConfirmedAppointment(appointment)
       setBookingStep('confirmed')
       
-      // Add confirmation message to chat
+      // Add confirmation message to chat with markdown formatting
+      const confirmationMsg = `🎉 **Appointment Confirmed!**\n\n` +
+        `**Provider:** ${appointment.provider?.name || appointment.provider_name}\n` +
+        `**Specialty:** ${appointment.provider?.specialty || appointment.specialty}\n` +
+        `**Date & Time:** ${new Date(appointment.datetime || appointment.appointment_details?.datetime).toLocaleString()}\n` +
+        `**Location:** ${appointment.provider?.address || appointment.provider?.location || 'Virtual Clinic'}\n\n` +
+        `**Confirmation Code:** \`${appointment.confirmation_code}\`\n\n` +
+        `✅ Your appointment has been saved. You can view all appointments on the home page.`
+      
       addMessage({
+        id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: `🎉 Appointment Confirmed!\n\n` +
-          `Provider: ${appointment.provider?.name || selectedProvider?.name}\n` +
-          `Specialty: ${appointment.provider?.specialty || selectedProvider?.specialty}\n` +
-          `Date & Time: ${new Date(appointment.appointment_details?.datetime || selectedSlot.datetime).toLocaleString()}\n` +
-          `Location: ${appointment.provider?.address || selectedProvider?.location}\n\n` +
-          `Confirmation Code: ${appointment.confirmation_code}\n\n` +
-          `Please save this confirmation code for your records.`,
-        created_at: new Date().toISOString(),
+        content: confirmationMsg,
         metadata: {
           type: 'booking_confirmation',
-          appointment_id: appointment.appointment_id,
-          confirmation_code: appointment.confirmation_code
-        }
+          confirmation_code: appointment.confirmation_code,
+          appointment_id: appointment.appointment_id
+        },
+        created_at: new Date().toISOString()
       })
       
+      // Load appointments to sync with backend
+      await loadAppointments()
+      
     } catch (error) {
-      console.error('Booking failed:', error)
+      console.error('❌ Booking failed:', error)
       addMessage({
         role: 'assistant',
         content: '❌ Sorry, the booking failed. Please try again.',
@@ -145,7 +148,7 @@ function ChatContainer({ compactMode = false }) {
       })
       resetBooking()
     }
-  }, [updatePatientInfo, bookAppointment, setBookingStep, addMessage, resetBooking])
+  }, [updatePatientInfo, bookAppointment, setBookingStep, addMessage, resetBooking, loadAppointments])
 
   const handleCancelBooking = useCallback(() => {
     console.log('❌ Booking cancelled')
@@ -314,10 +317,11 @@ function ChatContainer({ compactMode = false }) {
         </div>
       )}
       
-      {/* Messages Area */}
+      {/* Messages Area - Scrollbar always visible */}
       <div
         ref={scrollRef}
-        className={`flex-1 overflow-y-auto ${compactMode ? 'p-3' : 'p-6'} space-y-4`}
+        className={`flex-1 overflow-y-scroll ${compactMode ? 'p-3' : 'p-6'} space-y-4`}
+        style={{ scrollbarGutter: 'stable' }}
       >
         <MessageList messages={messages} />
         {isTyping && <TypingIndicator />}

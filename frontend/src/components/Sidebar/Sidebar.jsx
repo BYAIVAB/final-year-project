@@ -75,8 +75,8 @@ function Sidebar({ onUploadClick, onLogoClick }) {
         )}
       </div>
 
-      {/* Conversations List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-2">
+      {/* Conversations List - Scrollbar always visible */}
+      <div className="flex-1 overflow-y-scroll p-2 space-y-2" style={{ scrollbarGutter: 'stable' }}>
         {loading && (
           <div className="text-center text-arc-text-muted py-4">
             Loading...

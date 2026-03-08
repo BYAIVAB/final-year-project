@@ -1,31 +1,24 @@
 import api from './api'
 
 /**
- * Appointment Booking API Service
+ * Appointment Service API Client
+ * Handles all appointment-related API calls
  */
 const appointmentService = {
   /**
-   * Search for healthcare providers
+   * Search for providers by specialty and location
    */
-  async searchProviders(conversationId, specialty, location = null) {
-    const response = await api.post('/api/appointments/providers/search', {
-      conversation_id: conversationId,
-      specialty,
-      location,
-      radius_miles: 10
-    })
+  searchProviders: async (params) => {
+    const response = await api.post('/api/appointments/providers/search', params)
     return response.data
   },
 
   /**
    * Get available slots for a provider
    */
-  async getProviderSlots(providerId, startDate, endDate) {
+  getProviderSlots: async (providerId, startDate, endDate) => {
     const response = await api.get(`/api/appointments/providers/${providerId}/slots`, {
-      params: {
-        start_date: startDate,
-        end_date: endDate
-      }
+      params: { start_date: startDate, end_date: endDate }
     })
     return response.data
   },
@@ -33,36 +26,25 @@ const appointmentService = {
   /**
    * Book an appointment
    */
-  async bookAppointment(conversationId, providerId, slotId, slotDatetime, patientInfo) {
-    const response = await api.post('/api/appointments/book', {
-      conversation_id: conversationId,
-      provider_id: providerId,
-      slot_id: slotId,
-      slot_datetime: slotDatetime,
-      patient_info: patientInfo
-    })
+  bookAppointment: async (bookingData) => {
+    const response = await api.post('/api/appointments/book', bookingData)
     return response.data
   },
 
   /**
-   * Get user's appointments
+   * Get all appointments for current session
    */
-  async getAppointments(status = null) {
-    const response = await api.get('/api/appointments', {
-      params: { status, limit: 10 }
-    })
+  getAppointments: async () => {
+    const response = await api.get('/api/appointments')
     return response.data
   },
 
   /**
    * Cancel an appointment
    */
-  async cancelAppointment(appointmentId, confirmationCode, reason = null) {
+  cancelAppointment: async (appointmentId, cancelData) => {
     const response = await api.delete(`/api/appointments/${appointmentId}`, {
-      data: {
-        confirmation_code: confirmationCode,
-        reason
-      }
+      data: cancelData
     })
     return response.data
   }

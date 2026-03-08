@@ -52,6 +52,10 @@ class ChatResponseMetadata(BaseModel):
     """Metadata returned with chat responses, including booking intent info"""
     intent: Optional[str] = None  # 'booking', 'medical_query', etc.
     extracted_slots: Optional[Dict] = None  # specialty, urgency, etc.
+    
+    model_config = {
+        "extra": "allow"  # Allow extra fields for future extensibility
+    }
 
 
 class ChatResponse(BaseModel):
@@ -60,6 +64,10 @@ class ChatResponse(BaseModel):
     sources: List[Source] = []
     timing: Dict[str, float]
     metadata: Optional[ChatResponseMetadata] = None  # Booking intent info
+    
+    model_config = {
+        "extra": "allow"
+    }
 
 
 # Document Models

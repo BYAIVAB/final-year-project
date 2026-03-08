@@ -26,9 +26,9 @@ function LandingPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-arc-navy relative overflow-x-hidden">
+    <div className="min-h-screen bg-arc-navy relative">
       {/* Grid Background */}
-      <div className="fixed inset-0 z-0">
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <GridBackground />
       </div>
 
@@ -43,6 +43,9 @@ function LandingPage() {
         {/* Hero Section */}
         <HeroSection onChatClick={() => setIsChatOpen(true)} />
 
+        {/* My Appointments Section - MOVED UP for visibility */}
+        <MyAppointmentsSection />
+
         {/* Dashboard Section - Add ID here since DashboardGrid doesn't have one */}
         <section id="dashboard" className="py-16">
           <DashboardGrid />
@@ -53,9 +56,6 @@ function LandingPage() {
 
         {/* How It Works Section - Component has its own id="how-it-works" */}
         <HowItWorksSection />
-
-        {/* My Appointments Section - Shows user's upcoming appointments */}
-        <MyAppointmentsSection />
 
         {/* Testimonials Section - Component has its own id="testimonials" */}
         <TestimonialsSection />
