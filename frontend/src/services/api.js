@@ -4,18 +4,30 @@ import axios from 'axios'
 // In production, use the full API URL
 const API_URL = import.meta.env.VITE_API_URL || ''
 
+// Generate or retrieve session fingerprint
+const getSessionId = () => {
+  let sessionId = localStorage.getItem('session_id')
+  if (!sessionId) {
+    sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    localStorage.setItem('session_id', sessionId)
+  }
+  return sessionId
+}
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'X-Session-ID': getSessionId()
   },
   timeout: 120000 // 2 minutes for document processing
 })
 
-// Request interceptor
+// Request interceptor - Update session ID on every request
 api.interceptors.request.use(
   (config) => {
+    config.headers['X-Session-ID'] = getSessionId()
     return config
   },
   (error) => {

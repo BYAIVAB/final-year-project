@@ -31,6 +31,21 @@ class Settings(BaseSettings):
     USE_GPU: bool = False
     USE_STREAMING: bool = False
 
+    # ============================================
+    # Appointment Booking Settings
+    # ============================================
+    BOOKING_MODE: str = "dummy"  # "dummy" or "real_time"
+    
+    # External Provider APIs (for real_time mode)
+    ZOCDOC_API_KEY: str = ""
+    ZOCDOC_API_URL: str = "https://api.zocdoc.com/v1"
+    HEALTHGRADES_API_KEY: str = ""
+    
+    # Appointment Settings
+    PROVIDER_SEARCH_RADIUS_MILES: int = 10
+    APPOINTMENT_TTL_DAYS: int = 30
+    MAX_APPOINTMENTS_PER_SESSION: int = 5
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

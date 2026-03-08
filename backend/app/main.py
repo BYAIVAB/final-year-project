@@ -10,7 +10,7 @@ import logging
 from .config import settings
 from .services.mongodb_service import mongodb_service
 from .services.metrics_service import metrics_service
-from .api import chat, conversations, documents, health, metrics
+from .api import chat, conversations, documents, health, metrics, appointments
 
 # Setup logging
 logging.basicConfig(
@@ -85,6 +85,7 @@ app.include_router(conversations.router, prefix=settings.API_PREFIX)
 app.include_router(documents.router, prefix=settings.API_PREFIX)
 app.include_router(health.router, prefix=settings.API_PREFIX)
 app.include_router(metrics.router, prefix=settings.API_PREFIX)
+app.include_router(appointments.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/")

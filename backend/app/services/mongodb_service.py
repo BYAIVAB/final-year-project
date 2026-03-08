@@ -1,11 +1,13 @@
 """
 MongoDB Service
 Async operations with Motor driver for speed
+
+[v2.1 Update] Fixed timestamp timezone issue - now using timezone-aware UTC datetimes
 """
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import List, Dict, Optional
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from ..config import settings
@@ -39,8 +41,8 @@ class MongoDBService:
         """Create new conversation"""
         result = await self.db.conversations.insert_one({
             "title": title,
-            "created_at": datetime.utcnow(),
-            "last_active": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc),
+            "last_active": datetime.now(timezone.utc)
         })
         return str(result.inserted_id)
     
@@ -72,7 +74,7 @@ class MongoDBService:
         """Update last_active timestamp"""
         await self.db.conversations.update_one(
             {"_id": ObjectId(conversation_id)},
-            {"$set": {"last_active": datetime.utcnow()}}
+            {"$set": {"last_active": datetime.now(timezone.utc)}}
         )
     
     # Messages
@@ -88,7 +90,7 @@ class MongoDBService:
             "conversation_id": ObjectId(conversation_id),
             "role": role,
             "content": content,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
             "metadata": metadata or {}
         })
         return str(result.inserted_id)
@@ -142,7 +144,7 @@ class MongoDBService:
             "conversation_id": ObjectId(conversation_id),
             "filename": filename,
             "status": status,
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.now(timezone.utc),
             "page_count": None,
             "chunk_count": None
         })
@@ -164,7 +166,7 @@ class MongoDBService:
         if chunk_count:
             update_fields["chunk_count"] = chunk_count
         if status == "completed":
-            update_fields["completed_at"] = datetime.utcnow()
+            update_fields["completed_at"] = datetime.now(timezone.utc)
         
         await self.db.documents.update_one(
             {"_id": ObjectId(document_id)},

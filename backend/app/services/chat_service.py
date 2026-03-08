@@ -1,10 +1,17 @@
 """
 Chat Service - Fast RAG Pipeline
 Optimized orchestration of retrieval + LLM generation
+
+CHANGES LOG:
+- v2.1: Added robust keyword-based booking intent detection
+- v2.1: Fixed prompt leaking issue with response cleanup
+- v2.1: Improved booking flow trigger mechanism
 """
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 import time
 import logging
+import json
+import re
 
 from ..services.mongodb_service import mongodb_service
 from ..services.metrics_service import metrics_service
@@ -19,12 +26,177 @@ from rag.vectorstore.pinecone_store import pinecone_store
 
 logger = logging.getLogger(__name__)
 
+# ============================================
+# BOOKING INTENT PATTERNS (Keyword-based)
+# ============================================
+BOOKING_KEYWORDS = [
+    r'\b(book|schedule|make|get)\s*(an?|my)?\s*(appointment|booking|meeting|visit)\b',
+    r'\b(need|want|looking)\s*(to)?\s*(see|visit|consult)\s*(a|an|the)?\s*(doctor|specialist|physician)\b',
+    r'\bi\s*need\s*(to\s*)?(see|visit|consult)\s*(a|an)?\s*\w+logist\b',  # cardiologist, dermatologist, etc.
+    r'\b(find|search|looking\s*for)\s*(a|an)?\s*(doctor|specialist|clinic|hospital)\b',
+    r'\b(can\s*i|could\s*i|i\s*want\s*to)\s*(book|schedule|get)\b',
+    r'\bappointment\s*(with|for)\b',
+    r'\b(see|visit|consult)\s*(a|an)?\s*\w+logist\b',  # any specialist ending in -logist
+    r'\bset\s*up\s*(an?)?\s*(appointment|meeting|visit)\b',
+]
+
+# Specialty mappings (normalized names)
+SPECIALTY_PATTERNS = {
+    r'cardio\w*|heart\s*(doctor|specialist)?': 'cardiology',
+    r'derma\w*|skin\s*(doctor|specialist)?': 'dermatology',
+    r'neuro\w*|brain\s*(doctor|specialist)?|nervous': 'neurology',
+    r'ortho\w*|bone\s*(doctor|specialist)?|joint': 'orthopedics',
+    r'pedia\w*|child\w*\s*(doctor)?|kid': 'pediatrics',
+    r'psych\w*|therap\w*|mental\s*health|counselo?r': 'psychiatry',
+    r'gyn\w*|obst\w*|women': 'gynecology',
+    r'ophthalm\w*|eye\s*(doctor|specialist)?': 'ophthalmology',
+    r'dent\w*|tooth|teeth': 'dentistry',
+    r'ent|ear\s*nose\s*throat|otolaryn': 'ent',
+    r'gastro\w*|stomach|digest': 'gastroenterology',
+    r'pulmon\w*|lung|breath': 'pulmonology',
+    r'endocrin\w*|hormone|diabetes|thyroid': 'endocrinology',
+    r'oncolog\w*|cancer': 'oncology',
+    r'urolog\w*|kidney|bladder': 'urology',
+    r'rheumat\w*|arthritis|autoimmune': 'rheumatology',
+    r'general\s*(physician|practitioner|doctor)|gp|family\s*(doctor|medicine)': 'general_practice',
+}
+
+# Urgency patterns
+URGENCY_PATTERNS = {
+    'urgent': [r'\burgent\w*\b', r'\basap\b', r'\bemergenc\w*\b', r'\bimmediatel\w*\b', r'\btoday\b', r'\bnow\b'],
+    'routine': [r'\broutine\b', r'\bcheck\s*up\b', r'\bannual\b', r'\bregular\b', r'\bfollow\s*up\b']
+}
+
 
 class ChatService:
     """
     Fast chat pipeline orchestration.
-    Optimized for speed with minimal overhead.
+    Optimized for speed with robust booking intent detection.
+    
+    CHANGES v2.1:
+    - Keyword-based intent detection (more reliable than LLM-based)
+    - Response cleanup to remove prompt artifacts
+    - Proper booking flow triggering
     """
+    
+    def detect_booking_intent_keywords(self, message: str) -> Tuple[bool, Optional[Dict]]:
+        """
+        Detect booking intent using keyword patterns (FAST & RELIABLE).
+        
+        Args:
+            message: User message text
+            
+        Returns:
+            Tuple of (is_booking_intent, extracted_data)
+        """
+        message_lower = message.lower().strip()
+        
+        # Check for booking keywords
+        is_booking = False
+        for pattern in BOOKING_KEYWORDS:
+            if re.search(pattern, message_lower, re.IGNORECASE):
+                is_booking = True
+                logger.info(f"Booking intent detected via pattern: {pattern}")
+                break
+        
+        if not is_booking:
+            return False, None
+        
+        # Extract specialty
+        specialty = None
+        for pattern, spec_name in SPECIALTY_PATTERNS.items():
+            if re.search(pattern, message_lower, re.IGNORECASE):
+                specialty = spec_name
+                logger.info(f"Extracted specialty: {specialty}")
+                break
+        
+        # Extract urgency
+        urgency = 'routine'  # default
+        for urgency_level, patterns in URGENCY_PATTERNS.items():
+            for pattern in patterns:
+                if re.search(pattern, message_lower, re.IGNORECASE):
+                    urgency = urgency_level
+                    break
+        
+        # Build extracted slots
+        extracted_slots = {
+            'specialty': specialty,
+            'symptoms': None,  # Could extract with NER later
+            'timeframe': None,
+            'location': None,
+            'preferred_time': None,
+            'urgency': urgency
+        }
+        
+        # Determine what info is missing
+        missing_slots = []
+        if not specialty:
+            missing_slots.append('specialty')
+        missing_slots.append('location')  # Always need location
+        
+        # Generate next question
+        if not specialty:
+            next_question = "I'd be happy to help you book an appointment! 🏥 What type of doctor or specialist would you like to see?"
+        else:
+            next_question = f"Great! I can help you find a {specialty} specialist. 📍 Please share your location or enter your city so I can find doctors near you."
+        
+        return True, {
+            'intent': 'booking',
+            'confidence': 0.95,
+            'extracted_slots': extracted_slots,
+            'missing_slots': missing_slots,
+            'next_question': next_question
+        }
+    
+    def clean_llm_response(self, response: str) -> str:
+        """
+        Clean LLM response to remove prompt artifacts.
+        
+        Args:
+            response: Raw LLM response
+            
+        Returns:
+            Cleaned response text
+        """
+        if not response:
+            return "I apologize, but I couldn't generate a response. Please try asking your question again."
+        
+        # Remove common prompt artifacts
+        artifacts_to_remove = [
+            r'^(GUIDELINE|GUIDELINES?):\s*[\s\S]*?(RECENT CONVERSATION|CURRENT QUESTION|User:)',
+            r'^(SYSTEM PROMPT|INSTRUCTIONS?):\s*[\s\S]*?(User:|RECENT)',
+            r'^(RECENT CONVERSATION|CONTEXT):\s*',
+            r'^\d+\.\s*(Provide clear|Always cite|If you don\'t know|Never provide|Use simple|Encourage)[\s\S]*?(?=\n\n|\Z)',
+            r'^Assistant:\s*',
+            r'^\[INST\][\s\S]*?\[/INST\]\s*',
+        ]
+        
+        cleaned = response.strip()
+        
+        for pattern in artifacts_to_remove:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+        
+        # Remove leading newlines and clean up
+        cleaned = cleaned.strip()
+        
+        # If response still looks like it contains prompt content, extract actual answer
+        if 'GUIDELINE' in cleaned or 'RECENT CONVERSATION' in cleaned:
+            # Try to find actual response after prompt content
+            parts = re.split(r'(?:Assistant:|Response:|Answer:)\s*', cleaned, flags=re.IGNORECASE)
+            if len(parts) > 1:
+                cleaned = parts[-1].strip()
+            else:
+                # Last resort: take content after last newline block
+                lines = cleaned.split('\n\n')
+                for line in reversed(lines):
+                    if len(line.strip()) > 20 and not any(x in line for x in ['GUIDELINE', 'CONVERSATION', 'CONTEXT']):
+                        cleaned = line.strip()
+                        break
+        
+        # Final cleanup
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        return cleaned if len(cleaned) > 10 else "I'm here to help with your medical questions. Could you please rephrase your question?"
     
     async def process_message(
         self,
@@ -32,14 +204,15 @@ class ChatService:
         message: str
     ) -> Dict:
         """
-        Complete RAG pipeline (OPTIMIZED FOR SPEED).
+        Complete RAG pipeline with booking detection.
         
         Pipeline:
-        1. Load buffer from MongoDB (last 10 messages)
+        0. Check for booking intent (keyword-based - FAST)
+        1. Load buffer from MongoDB
         2. Generate query embedding
-        3. Dual retrieval (docs + chat history)
+        3. Dual retrieval
         4. Build prompt
-        5. Generate response
+        5. Generate response (with cleanup)
         6. Save to MongoDB
         7. Store in Pinecone
         
@@ -48,12 +221,67 @@ class ChatService:
             message: User message
             
         Returns:
-            Response dict with message, sources, timing
+            Response dict with message, sources, timing, metadata
         """
         start_time = time.time()
         timing = {}
         
         try:
+            # ============================================
+            # STEP 0: CHECK FOR BOOKING INTENT (KEYWORD-BASED)
+            # ============================================
+            intent_start = time.time()
+            is_booking, intent_data = self.detect_booking_intent_keywords(message)
+            timing["intent_detection"] = (time.time() - intent_start) * 1000
+            
+            if is_booking and intent_data:
+                logger.info(f"🎯 Booking intent detected: {intent_data.get('extracted_slots')}")
+                
+                # Get next question based on extracted info
+                next_question = intent_data.get("next_question", 
+                    "I'd be happy to help you book an appointment! What type of doctor do you need?")
+                
+                # Save user message
+                user_msg_id = await mongodb_service.save_message(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=message,
+                    metadata={}
+                )
+                
+                # Save assistant response with booking metadata
+                assistant_msg_id = await mongodb_service.save_message(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=next_question,
+                    metadata={
+                        "intent": "booking",
+                        "extracted_slots": intent_data.get("extracted_slots", {}),
+                        "booking_state": "awaiting_location"
+                    }
+                )
+                
+                timing["total"] = (time.time() - start_time) * 1000
+                logger.info(f"✅ Booking response in {timing['total']:.0f}ms")
+                
+                return {
+                    "message_id": assistant_msg_id,
+                    "response": next_question,
+                    "sources": [],
+                    "timing": timing,
+                    "metadata": {
+                        "intent": "booking",
+                        "booking_state": "awaiting_location",
+                        "extracted_slots": intent_data.get("extracted_slots", {}),
+                        "missing_slots": intent_data.get("missing_slots", []),
+                        "confidence": intent_data.get("confidence", 0.95)
+                    }
+                }
+            
+            # ============================================
+            # Continue with normal RAG flow if not booking
+            # ============================================
+            
             # Step 1: Load conversation buffer (FAST - only last 10)
             buffer_start = time.time()
             buffer_messages = await mongodb_service.get_recent_messages(
@@ -91,7 +319,10 @@ class ChatService:
             
             # Step 5: Generate LLM response (MAIN BOTTLENECK)
             llm_start = time.time()
-            response = generate_response(prompt)
+            raw_response = generate_response(prompt)
+            
+            # Step 5.5: Clean up LLM response (remove prompt artifacts)
+            response = self.clean_llm_response(raw_response)
             timing["llm_generation"] = (time.time() - llm_start) * 1000
             logger.info(f"LLM: {timing['llm_generation']:.0f}ms")
             
@@ -154,7 +385,11 @@ class ChatService:
                 "message_id": assistant_msg_id,
                 "response": response,
                 "sources": sources,
-                "timing": timing
+                "timing": timing,
+                "metadata": {
+                    "intent": "medical_query",
+                    "sources_count": len(sources)
+                }
             }
             
         except Exception as e:

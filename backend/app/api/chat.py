@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 import logging
 
-from ..models import ChatRequest, ChatResponse, Source
+from ..models import ChatRequest, ChatResponse, ChatResponseMetadata, Source
 from ..services.chat_service import chat_service
 
 logger = logging.getLogger(__name__)
@@ -52,11 +52,20 @@ async def send_message(request: ChatRequest):
         # Convert to response model
         sources = [Source(**src) for src in result["sources"]]
         
+        # Build metadata if booking intent detected
+        metadata = None
+        if result.get("metadata"):
+            metadata = ChatResponseMetadata(
+                intent=result["metadata"].get("intent"),
+                extracted_slots=result["metadata"].get("extracted_slots")
+            )
+        
         return ChatResponse(
             message_id=result["message_id"],
             response=result["response"],
             sources=sources,
-            timing=result["timing"]
+            timing=result["timing"],
+            metadata=metadata
         )
         
     except Exception as e:

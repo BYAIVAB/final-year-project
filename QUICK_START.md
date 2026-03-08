@@ -178,6 +178,67 @@ VITE v6.x.x  ready in xxx ms
 
 ---
 
+## STEP 9.5: Setup AI Appointment Booking (Required for Booking Feature)
+
+The appointment booking feature uses a keyword-based intent detection system.
+
+**Open a new terminal** in the backend folder (with venv activated):
+
+```cmd
+cd backend
+
+# Seed dummy healthcare providers (12 providers across specialties)
+.\venv\Scripts\python.exe -m scripts.seed_providers
+```
+
+You should see:
+```
+✅ Seeded 12 dummy providers
+✅ Created indexes on providers collection
+```
+
+### Available Specialties:
+- Cardiology (2 providers)
+- Dermatology (2 providers)
+- Neurology
+- Orthopedics
+- Pediatrics
+- Psychiatry
+- General Practice
+- ENT
+- Gastroenterology
+- Ophthalmology
+
+### Test the Booking Flow:
+Type any of these phrases in the chat:
+- "I want to book an appointment with a cardiologist"
+- "I need to see a dermatologist"
+- "Can I schedule a visit with an eye doctor?"
+- "Book appointment for psychiatry"
+
+**The booking flow:**
+1. ✅ **Intent Detection** - System detects booking intent via keyword matching (fast & reliable)
+2. 📍 **Location Modal** - Appears immediately asking for location
+3. 🔍 **Provider Search** - Shows available doctors for your specialty
+4. 📅 **Time Selection** - Pick from available appointment slots
+5. 📝 **Patient Info** - Enter your name, phone, email, and reason for visit
+6. 🎉 **Confirmation** - Appointment confirmed with unique confirmation code displayed in chat
+
+**Confirmation displayed in chat** with:
+- Provider name and specialty
+- Date & time of appointment
+- Location
+- Unique confirmation code (XXXX-1234 format)
+
+**Add booking config to `.env`** (optional):
+```env
+BOOKING_MODE=dummy
+APPOINTMENT_TTL_DAYS=30
+MAX_APPOINTMENTS_PER_SESSION=10
+```
+
+---
+
 ## STEP 10: Open the Application
 
 Open your browser and go to: **http://localhost:5173**
@@ -192,6 +253,9 @@ Open your browser and go to: **http://localhost:5173**
 | Terminal 2 | `ollama serve` | LLM Server |
 | Terminal 3 | `cd backend && venv\Scripts\activate && python -m uvicorn app.main:app --reload --port 8000` | Backend API |
 | Terminal 4 | `cd frontend && npm run dev` | Frontend UI |
+
+### Test AI Booking (After Setup)
+Type in chat: **"I need to see a cardiologist"** → Follow the booking flow
 
 ---
 
@@ -266,6 +330,26 @@ To fix, select the correct Python interpreter:
 2. Type "Python: Select Interpreter"
 3. Choose `backend/venv/Scripts/python.exe`
 
+### AI Booking Issues
+
+**"No providers found"**
+```cmd
+cd backend
+venv\Scripts\activate
+python -m scripts.seed_providers
+```
+
+**"Booking intent not detected"**
+- Verify Ollama is running: `ollama list`
+- Try clearer booking phrases: "I need to see a cardiologist"
+
+**"Appointments collection error"**
+```cmd
+cd backend
+venv\Scripts\activate
+python -m scripts.setup_appointments_collection
+```
+
 ---
 
 ## Expected Performance
@@ -275,6 +359,9 @@ To fix, select the correct Python interpreter:
 | Chat Response | 3-6 seconds |
 | PDF Upload (10 pages) | ~10 seconds |
 | Vector Search | ~100ms |
+| Booking Intent Detection | ~1-2 seconds |
+| Provider Search | ~200ms |
+| Appointment Booking | ~300ms |
 
 ---
 
@@ -287,6 +374,11 @@ final-year-project/
 │   ├── requirements.txt        # Python dependencies
 │   ├── .env                    # Environment config (create this)
 │   ├── uploads/                # Temporary PDF storage
+│   ├── scripts/                # Setup & Seed Scripts
+│   │   ├── seed_providers.py   # Seeds dummy providers
+│   │   └── setup_appointments_collection.py
+│   ├── tests/                  # Test Suite
+│   │   └── test_booking_flow.py  # Booking integration tests
 │   └── app/
 │       ├── main.py             # FastAPI app entry point
 │       ├── config.py           # Pydantic settings (loads .env)
@@ -295,12 +387,16 @@ final-year-project/
 │       │   ├── conversations.py
 │       │   ├── documents.py    # POST /api/documents/upload
 │       │   ├── health.py       # GET /api/health
-│       │   └── metrics.py
+│       │   ├── metrics.py
+│       │   └── appointments.py # Booking API endpoints
 │       ├── services/           # Business Logic
-│       │   ├── chat_service.py # RAG pipeline orchestration
+│       │   ├── chat_service.py # RAG pipeline + booking intent
 │       │   ├── document_service.py
 │       │   ├── mongodb_service.py
-│       │   └── metrics_service.py
+│       │   ├── metrics_service.py
+│       │   └── appointment_service.py  # Booking logic
+│       ├── prompts/            # LLM Prompt Templates
+│       │   └── booking_intent_prompts.py
 │       └── models/             # Pydantic schemas
 │
 ├── rag/                        # RAG Engine Module (pip install -e .)
@@ -328,23 +424,39 @@ final-year-project/
 │       ├── App.jsx             # Route definitions
 │       ├── components/         # Reusable UI components
 │       │   ├── Chat/           # ChatContainer, MessageInput, etc.
+│       │   ├── Booking/        # AI Booking Components
+│       │   │   ├── LocationPermissionModal.jsx
+│       │   │   ├── ProviderCard.jsx
+│       │   │   ├── SlotSelector.jsx
+│       │   │   ├── PatientInfoForm.jsx
+│       │   │   └── BookingCard.jsx
 │       │   ├── Layout/         # MainLayout, GridBackground
 │       │   ├── Sidebar/        # Conversation list
 │       │   └── Upload/         # PDF upload modal
+│       ├── features/           # Feature-specific components
+│       │   └── landing/        # Landing page sections
+│       │       └── appointments/  # MyAppointmentsSection
 │       ├── pages/              # Page components
 │       │   ├── landing/        # LandingPage.jsx
 │       │   ├── chat/           # ChatPage.jsx
 │       │   └── dashboard/      # DashboardPage.jsx
 │       ├── hooks/              # Custom React hooks
-│       │   ├── useChat.js      # Chat logic
+│       │   ├── useChat.js      # Chat logic + booking trigger
 │       │   ├── useConversations.js
-│       │   └── useDocuments.js
+│       │   ├── useDocuments.js
+│       │   └── useBooking.js   # Booking workflow hook
+│       ├── store/              # Zustand State Management
+│       │   ├── chatStore.js
+│       │   └── appointmentStore.js  # Booking state
 │       └── services/           # API service functions
-│           ├── api.js          # Axios instance
-│           └── chatService.js
+│           ├── api.js          # Axios with session ID
+│           ├── chatService.js
+│           └── appointmentService.js  # Booking API calls
 │
 ├── README.md                   # Full documentation
 ├── QUICK_START.md              # This file
+├── BOOKING_SETUP.md            # AI Booking setup guide
+├── START_BOOKING.bat           # Windows startup script
 ├── PPT_CONTENT.md              # Presentation content
 ├── pyrightconfig.json          # Python IDE config
 └── .gitignore                  # Git exclusions

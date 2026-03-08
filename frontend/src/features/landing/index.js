@@ -5,6 +5,7 @@ export { default as FeaturesSection } from './features/components/FeaturesSectio
 export { default as HowItWorksSection } from './how-it-works/components/HowItWorksSection';
 export { default as TestimonialsSection } from './testimonials/components/TestimonialsSection';
 export { default as CTASection } from './cta/components/CTASection';
+export { MyAppointmentsSection } from './appointments';
 
 // Exporting these here for convenience in the LandingPage
 export { default as Footer } from '../../components/layout/Footer';

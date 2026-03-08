@@ -11,6 +11,7 @@ import {
   FloatingChatButton,
   ChatPopup,
   CursorGlow,
+  MyAppointmentsSection,
 } from '../../features/landing'
 import GridBackground from '../../components/Layout/GridBackground'
 
@@ -52,6 +53,9 @@ function LandingPage() {
 
         {/* How It Works Section - Component has its own id="how-it-works" */}
         <HowItWorksSection />
+
+        {/* My Appointments Section - Shows user's upcoming appointments */}
+        <MyAppointmentsSection />
 
         {/* Testimonials Section - Component has its own id="testimonials" */}
         <TestimonialsSection />

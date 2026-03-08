@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useChatStore } from '../store/chatStore'
+import useAppointmentStore from '../store/appointmentStore'
 import { chatService } from '../services/chatService'
 import { useSound } from './useSound'
 
@@ -14,6 +15,8 @@ export const useChat = (conversationId) => {
     setTyping,
     setError
   } = useChatStore()
+  
+  const { startBooking } = useAppointmentStore()
 
   const { playTyping, stopTyping, playMessageSent } = useSound()
 
@@ -56,6 +59,16 @@ export const useChat = (conversationId) => {
       // Send to backend
       const response = await chatService.sendMessage(conversationId, message)
 
+      // ============================================
+      // CHECK FOR BOOKING INTENT
+      // ============================================
+      if (response.metadata?.intent === 'booking') {
+        console.log('🎯 Booking intent detected:', response.metadata)
+        
+        // Start booking flow in appointment store
+        startBooking(response.metadata.extracted_slots)
+      }
+
       // Add assistant response
       addMessage({
         role: 'assistant',
@@ -63,7 +76,9 @@ export const useChat = (conversationId) => {
         created_at: new Date().toISOString(),
         metadata: {
           sources: response.sources,
-          timing: response.timing
+          timing: response.timing,
+          intent: response.metadata?.intent,
+          extracted_slots: response.metadata?.extracted_slots
         }
       })
 

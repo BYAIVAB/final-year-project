@@ -11,12 +11,13 @@
 4. [Backend Documentation](#backend-documentation)
 5. [RAG Engine Documentation](#rag-engine-documentation)
 6. [Frontend Documentation](#frontend-documentation)
-7. [API Reference](#api-reference)
-8. [Data Flow Diagrams](#data-flow-diagrams)
-9. [Database Schemas](#database-schemas)
-10. [Configuration Reference](#configuration-reference)
-11. [Dependencies](#dependencies)
-12. [Setup & Usage](#setup--usage)
+7. [AI Appointment Booking Agent](#ai-appointment-booking-agent)
+8. [API Reference](#api-reference)
+9. [Data Flow Diagrams](#data-flow-diagrams)
+10. [Database Schemas](#database-schemas)
+11. [Configuration Reference](#configuration-reference)
+12. [Dependencies](#dependencies)
+13. [Setup & Usage](#setup--usage)
 
 ---
 
@@ -40,6 +41,7 @@
 5. **Source Attribution** - Shows which documents/pages answers came from
 6. **Real-time Dashboard** - Analytics showing queries, response times, popular topics
 7. **Responsive UI** - Modern React interface with ARC AGI dark theme
+8. **AI Appointment Booking Agent** - Natural language appointment scheduling with provider search, slot selection, and confirmation
 
 ---
 
@@ -53,9 +55,13 @@
 │  │ Landing Page │  │  Chat Page   │  │  Dashboard   │  │    Upload Modal    │   │
 │  │  /           │  │   /chat      │  │  /dashboard  │  │  (PDF Processing)  │   │
 │  └──────────────┘  └──────────────┘  └──────────────┘  └────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────────────────────────┐   │
+│  │                     AI APPOINTMENT BOOKING UI                             │   │
+│  │  LocationModal → ProviderCard → SlotSelector → PatientInfoForm → BookingCard │
+│  └──────────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────────┘
                                         │
-                                        │ HTTP/REST (axios)
+                                        │ HTTP/REST (axios) + X-Session-ID Header
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                              FASTAPI BACKEND                                     │
@@ -67,13 +73,19 @@
 │  │  POST /api/documents/upload  - PDF upload and processing                │     │
 │  │  GET /api/health             - System health check                      │     │
 │  │  GET /api/metrics/dashboard  - Dashboard analytics data                 │     │
+│  │  POST /api/appointments/providers/search - Search providers by specialty│     │
+│  │  GET  /api/appointments/providers/{id}/slots - Get available time slots │     │
+│  │  POST /api/appointments/book - Book an appointment                      │     │
+│  │  GET  /api/appointments      - List user appointments (by session ID)   │     │
+│  │  DELETE /api/appointments/{id} - Cancel an appointment                  │     │
 │  └────────────────────────────────────────────────────────────────────────┘     │
 │  ┌────────────────────────────────────────────────────────────────────────┐     │
 │  │                       SERVICES (app/services/)                          │     │
-│  │  ChatService        - Orchestrates RAG pipeline                         │     │
+│  │  ChatService        - Orchestrates RAG pipeline + booking intent detect │     │
 │  │  DocumentService    - Handles PDF processing pipeline                   │     │
 │  │  MongoDBService     - Async MongoDB operations (Motor driver)           │     │
 │  │  MetricsService     - Tracks usage analytics                            │     │
+│  │  AppointmentService - Provider search, slot management, booking logic   │     │
 │  └────────────────────────────────────────────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────────────────┘
                                         │
@@ -119,6 +131,8 @@ medical-rag-chatbot/
 │
 ├── README.md                              # This file - Complete documentation
 ├── QUICK_START.md                         # Quick setup guide
+├── BOOKING_SETUP.md                       # AI Booking Agent setup guide
+├── START_BOOKING.bat                      # Windows startup script
 ├── architecture_explanation_for_ai.txt    # Additional AI context document
 ├── pyrightconfig.json                     # Python type checking config
 │
@@ -137,20 +151,35 @@ medical-rag-chatbot/
 │   │   │   ├── conversations.py           # CRUD /api/conversations
 │   │   │   ├── documents.py               # POST /api/documents/upload
 │   │   │   ├── health.py                  # GET /api/health
-│   │   │   └── metrics.py                 # GET /api/metrics/dashboard
+│   │   │   ├── metrics.py                 # GET /api/metrics/dashboard
+│   │   │   └── appointments.py            # Appointment booking API endpoints
 │   │   │
 │   │   ├── models/                        # ─── Pydantic Models ───
 │   │   │   └── __init__.py                # Request/Response schemas
 │   │   │
 │   │   ├── services/                      # ─── Business Logic Services ───
 │   │   │   ├── __init__.py
-│   │   │   ├── chat_service.py            # RAG pipeline orchestration
+│   │   │   ├── chat_service.py            # RAG pipeline + booking intent detection
 │   │   │   ├── document_service.py        # PDF processing pipeline
 │   │   │   ├── mongodb_service.py         # Async MongoDB operations
-│   │   │   └── metrics_service.py         # Analytics tracking
+│   │   │   ├── metrics_service.py         # Analytics tracking
+│   │   │   └── appointment_service.py     # Provider search, slot management, booking
+│   │   │
+│   │   ├── prompts/                       # ─── LLM Prompt Templates ───
+│   │   │   ├── __init__.py                # Exports prompt templates
+│   │   │   └── booking_intent_prompts.py  # Booking intent detection prompts
 │   │   │
 │   │   └── utils/
 │   │       └── __init__.py
+│   │
+│   ├── scripts/                           # ─── Setup & Seed Scripts ───
+│   │   ├── __init__.py
+│   │   ├── seed_providers.py              # Seeds dummy provider data
+│   │   └── setup_appointments_collection.py  # MongoDB collection setup
+│   │
+│   ├── tests/                             # ─── Test Suite ───
+│   │   ├── __init__.py
+│   │   └── test_booking_flow.py           # Booking flow integration tests
 │   │
 │   └── uploads/                           # Temporary PDF storage (auto-created)
 │
@@ -199,11 +228,19 @@ medical-rag-chatbot/
         │
         ├── components/                    # ─── Reusable UI Components ───
         │   ├── Chat/
-        │   │   ├── ChatContainer.jsx      # Main chat UI with input + messages
+        │   │   ├── ChatContainer.jsx      # Main chat UI + booking integration
         │   │   ├── MessageInput.jsx       # Text input with send button
         │   │   ├── MessageItem.jsx        # Single message bubble
         │   │   ├── MessageList.jsx        # Scrollable message list
         │   │   └── TypingIndicator.jsx    # "..." animation while AI responds
+        │   │
+        │   ├── Booking/                   # ─── AI Appointment Booking Components ───
+        │   │   ├── index.js               # Exports all booking components
+        │   │   ├── LocationPermissionModal.jsx  # Geolocation/city selection
+        │   │   ├── ProviderCard.jsx       # Provider selection card
+        │   │   ├── SlotSelector.jsx       # Date/time slot selection
+        │   │   ├── PatientInfoForm.jsx    # Patient information form
+        │   │   └── BookingCard.jsx        # Confirmation card with calendar
         │   │
         │   ├── Layout/
         │   │   ├── MainLayout.jsx         # Page wrapper component
@@ -227,7 +264,12 @@ medical-rag-chatbot/
         │   │   ├── Footer.jsx
         │   │   ├── FloatingChatButton.jsx
         │   │   ├── ChatPopup.jsx
-        │   │   └── CursorGlow.jsx
+        │   │   ├── CursorGlow.jsx
+        │   │   └── index.js               # Exports all landing components
+        │   │   │
+        │   │   └── appointments/          # ─── Appointment Management UI ───
+        │   │       ├── index.js           # Exports appointments components
+        │   │       └── MyAppointmentsSection.jsx  # User's appointments list
         │   │
         │   └── chat-widget/               # Embeddable chat widget
         │
@@ -241,21 +283,24 @@ medical-rag-chatbot/
         │       └── DashboardPage.jsx      # Analytics dashboard
         │
         ├── hooks/                         # ─── Custom React Hooks ───
-        │   ├── useChat.js                 # Chat logic (sendMessage, loadMessages)
+        │   ├── useChat.js                 # Chat logic + booking intent detection
         │   ├── useConversations.js        # Conversation CRUD logic
         │   ├── useDocuments.js            # Document upload logic
         │   ├── useDashboardData.js        # Dashboard data fetching
         │   ├── useAutoScroll.js           # Auto-scroll to bottom
-        │   └── useSound.js                # Sound effects
+        │   ├── useSound.js                # Sound effects
+        │   └── useBooking.js              # Booking flow management hook
         │
         ├── services/                      # ─── API Service Layer ───
-        │   ├── api.js                     # Axios instance with interceptors
+        │   ├── api.js                     # Axios instance with session ID
         │   ├── chatService.js             # Chat API calls
         │   ├── conversationService.js     # Conversation API calls
-        │   └── documentService.js         # Document upload API calls
+        │   ├── documentService.js         # Document upload API calls
+        │   └── appointmentService.js      # Appointment booking API calls
         │
         ├── store/                         # ─── State Management ───
-        │   └── chatStore.js               # Zustand store (conversations, messages)
+        │   ├── chatStore.js               # Zustand store (conversations, messages)
+        │   └── appointmentStore.js        # Zustand store (booking flow state)
         │
         └── styles/
             ├── globals.css                # Global styles + Tailwind imports
@@ -330,14 +375,49 @@ class Settings(BaseSettings):
 ```
 
 ### File: `backend/app/services/chat_service.py`
-**Purpose**: Orchestrates the complete RAG pipeline
+**Purpose**: Orchestrates the complete RAG pipeline with booking intent detection
 
 ```python
 class ChatService:
+    # Booking Keywords - Regex patterns for fast detection
+    BOOKING_KEYWORDS = [
+        r'\b(book|schedule|make)\s+(an?\s+)?appointment',
+        r'\bsee\s+a\s+(doctor|specialist|\w+ologist)',
+        r'\b(find|looking for)\s+a\s+\w+ologist',
+        r'\bconsult\s+(with\s+)?a\s+\w+ologist',
+        # ... more patterns
+    ]
+    
+    def detect_booking_intent_keywords(message: str) -> Dict:
+        """
+        Keyword-based booking intent detection (fast & reliable)
+        
+        Uses regex patterns instead of LLM for:
+        - Faster detection (<5ms vs 2-3 seconds)
+        - More reliable than small LLMs
+        - No dependency on LLM output format
+        
+        Returns: {
+            "is_booking_intent": true/false,
+            "specialty": "cardiology",  # extracted from patterns
+            "urgency": "normal"  # or "urgent" if detected
+        }
+        """
+    
+    def clean_llm_response(response: str) -> str:
+        """
+        Clean LLM response to remove prompt artifacts
+        Strips: GUIDELINE:, RECENT CONVERSATION:, Context: sections
+        """
+    
     async def process_message(conversation_id: str, message: str) -> Dict:
         """
-        Complete RAG Pipeline:
+        Complete RAG Pipeline with Booking Detection:
         
+        Step 0: Detect Booking Intent (NEW)
+           - Send message to LLM with booking intent prompt
+           - If booking intent detected, return booking_data
+           
         Step 1: Load Buffer (MongoDB)
            - Get last 10 messages for conversation
            - Format for prompt inclusion
@@ -374,9 +454,132 @@ class ChatService:
             message_id: str,
             response: str,
             sources: List[Dict],
-            timing: Dict[str, float]
+            timing: Dict[str, float],
+            booking_data: Optional[Dict]  # NEW: If booking intent detected
         }
         """
+```
+
+### File: `backend/app/services/appointment_service.py`
+**Purpose**: Provider search, slot management, and appointment booking
+
+```python
+class AppointmentService:
+    """
+    Handles all appointment booking operations.
+    Supports two modes: 'dummy' (local DB) and 'real_time' (external APIs)
+    """
+    
+    async def search_providers_dummy(specialty: str, city: str, limit: int) -> List[Dict]:
+        """
+        Search dummy providers from MongoDB.
+        Returns providers matching specialty and city.
+        """
+    
+    async def search_providers_realtime(specialty: str, city: str, lat: float, lng: float) -> List[Dict]:
+        """
+        Search real providers via external APIs (Zocdoc, Healthgrades, etc.)
+        Requires BOOKING_MODE=real_time and valid API keys.
+        """
+    
+    async def get_provider_slots(provider_id: str, date: str = None) -> List[Dict]:
+        """
+        Get available appointment slots for a provider.
+        In dummy mode: generates slots for next 7 days
+        In real_time mode: fetches from provider's scheduling API
+        
+        Returns: [
+            {"date": "2026-03-10", "time": "09:00 AM", "duration": 30},
+            ...
+        ]
+        """
+    
+    async def book_appointment(
+        session_id: str,
+        provider_id: str, 
+        slot: Dict,
+        patient_info: Dict
+    ) -> Dict:
+        """
+        Book an appointment and save to MongoDB.
+        
+        Generates confirmation code: XXXX-1234 format
+        
+        Returns: {
+            "appointment_id": str,
+            "confirmation_code": "CARD-5678",
+            "provider": {...},
+            "slot": {...},
+            "patient_info": {...},
+            "status": "confirmed"
+        }
+        """
+    
+    async def get_appointments(session_id: str) -> List[Dict]:
+        """
+        Get all appointments for a session ID.
+        Sorted by date descending.
+        """
+    
+    async def cancel_appointment(appointment_id: str, session_id: str) -> Dict:
+        """
+        Cancel an appointment.
+        Verifies session_id ownership before cancellation.
+        """
+    
+    def generate_confirmation_code(specialty: str) -> str:
+        """
+        Generate confirmation code in format: XXXX-1234
+        XXXX = first 4 chars of specialty uppercased
+        1234 = random 4-digit number
+        """
+
+# Global instance
+appointment_service = AppointmentService()
+```
+
+### File: `backend/app/prompts/booking_intent_prompts.py`
+**Purpose**: LLM prompts for booking intent detection
+
+```python
+BOOKING_INTENT_SYSTEM_PROMPT = '''
+You are an AI assistant that detects appointment booking intent.
+
+Analyze the user message and determine if they want to:
+1. Schedule/book a doctor appointment
+2. Find a healthcare provider/specialist
+3. Check appointment availability
+
+Return JSON with:
+{
+    "is_booking_intent": true/false,
+    "specialty": "extracted specialty or null",
+    "symptoms": ["symptoms mentioned"],
+    "urgency": "low|medium|high"
+}
+
+Examples of booking intent:
+- "I need to see a cardiologist" → is_booking_intent: true
+- "Can I schedule an appointment with a dermatologist?"
+- "I want to book a doctor for my back pain"
+- "Find me a pediatrician near me"
+
+Examples of NON-booking intent:
+- "What are symptoms of diabetes?" → is_booking_intent: false
+- "How do I treat a headache?"
+- "What does high blood pressure mean?"
+'''
+
+LOCATION_REQUEST_PROMPT = '''
+Ask the user for their location to find nearby providers.
+'''
+
+CONFIRMATION_PROMPT_TEMPLATE = '''
+Confirm the appointment booking:
+Provider: {provider_name}
+Date: {date}
+Time: {time}
+'''
 ```
 
 ### File: `backend/app/services/document_service.py`
@@ -788,11 +991,11 @@ const useChatStore = create((set, get) => ({
 ```
 
 ### File: `frontend/src/hooks/useChat.js`
-**Purpose**: Chat business logic hook
+**Purpose**: Chat business logic hook with booking integration
 
 ```javascript
 const useChat = (conversationId) => {
-  // Uses: useChatStore, chatService
+  // Uses: useChatStore, useAppointmentStore, chatService
   
   const loadMessages = async () => {
     // GET /api/conversations/{id}/messages
@@ -803,12 +1006,259 @@ const useChat = (conversationId) => {
     // 1. Add user message to UI immediately
     // 2. Set typing indicator
     // 3. POST /api/chat
-    // 4. Add assistant response to UI
-    // 5. Clear typing indicator
+    // 4. Check for booking_data in response (NEW)
+    //    - If booking intent detected, trigger booking flow
+    //    - Call startBooking(booking_data)
+    // 5. Add assistant response to UI
+    // 6. Clear typing indicator
   }
   
   return { messages, isLoading, isTyping, sendMessage, loadMessages }
 }
+```
+
+### File: `frontend/src/store/appointmentStore.js`
+**Purpose**: Zustand state management for booking flow
+
+```javascript
+const useAppointmentStore = create((set, get) => ({
+  // State
+  isBooking: false,              // Booking mode active
+  bookingStep: 'idle',           // idle|location|providers|slots|patientInfo|confirmation
+  extractedSlots: null,          // Slots from LLM extraction
+  detectedSpecialty: null,       // Specialty from intent detection
+  location: null,                // User's location {city, lat, lng}
+  providers: [],                 // Found providers
+  selectedProvider: null,        // Chosen provider
+  selectedSlot: null,            // Chosen time slot
+  patientInfo: null,             // Patient form data
+  appointments: [],              // Booked appointments
+  loading: false,
+  error: null,
+  
+  // Actions
+  startBooking: (data) => set({
+    isBooking: true,
+    bookingStep: 'location',
+    detectedSpecialty: data.specialty,
+    extractedSlots: data.slots
+  }),
+  
+  setBookingStep: (step) => set({ bookingStep: step }),
+  setLocation: (location) => set({ location }),
+  setProviders: (providers) => set({ providers }),
+  selectProvider: (provider) => set({ selectedProvider: provider, bookingStep: 'slots' }),
+  selectSlot: (slot) => set({ selectedSlot: slot, bookingStep: 'patientInfo' }),
+  setPatientInfo: (info) => set({ patientInfo: info }),
+  
+  addAppointment: (appointment) => set(state => ({
+    appointments: [...state.appointments, appointment],
+    bookingStep: 'confirmation'
+  })),
+  
+  resetBooking: () => set({
+    isBooking: false,
+    bookingStep: 'idle',
+    selectedProvider: null,
+    selectedSlot: null,
+    patientInfo: null,
+    providers: [],
+    error: null
+  }),
+  
+  setLoading: (loading) => set({ loading }),
+  setError: (error) => set({ error })
+}))
+```
+
+### File: `frontend/src/hooks/useBooking.js`
+**Purpose**: Booking workflow logic hook
+
+```javascript
+const useBooking = () => {
+  // Uses: useAppointmentStore, appointmentService
+  
+  const searchProviders = async (specialty, location) => {
+    // POST /api/appointments/providers/search
+    // Updates store.providers
+  }
+  
+  const fetchSlots = async (providerId) => {
+    // GET /api/appointments/providers/{id}/slots
+    // Returns available time slots
+  }
+  
+  const bookAppointment = async (providerId, slot, patientInfo) => {
+    // POST /api/appointments/book
+    // Adds new appointment to store.appointments
+  }
+  
+  const loadAppointments = async () => {
+    // GET /api/appointments
+    // Fetches user's appointments by session ID
+  }
+  
+  const cancelAppointment = async (appointmentId) => {
+    // DELETE /api/appointments/{id}
+    // Removes from store.appointments
+  }
+  
+  return {
+    ...appointmentStore,
+    searchProviders,
+    fetchSlots,
+    bookAppointment,
+    loadAppointments,
+    cancelAppointment
+  }
+}
+```
+
+### File: `frontend/src/services/appointmentService.js`
+**Purpose**: Appointment API client functions
+
+```javascript
+// Provider Search
+const searchProviders = async (specialty, city, lat, lng) => {
+  // POST /api/appointments/providers/search
+  // Body: { specialty, city, latitude, longitude }
+}
+
+// Get Slots
+const getProviderSlots = async (providerId, date) => {
+  // GET /api/appointments/providers/{id}/slots?date={date}
+}
+
+// Book Appointment
+const bookAppointment = async (providerId, slot, patientInfo) => {
+  // POST /api/appointments/book
+  // Body: { provider_id, slot, patient_info }
+}
+
+// Get My Appointments
+const getAppointments = async () => {
+  // GET /api/appointments
+  // Uses X-Session-ID header automatically
+}
+
+// Cancel Appointment
+const cancelAppointment = async (appointmentId) => {
+  // DELETE /api/appointments/{id}
+}
+```
+
+### Booking Components (`frontend/src/components/Booking/`)
+
+**LocationPermissionModal.jsx**
+```jsx
+// Modal that appears when booking starts
+// Options:
+// 1. Allow browser geolocation
+// 2. Enter city manually
+// 3. Skip (use default location)
+
+// Props: onLocationSelected(location), onClose()
+```
+
+**ProviderCard.jsx**
+```jsx
+// Displays a single provider for selection
+// Shows:
+// - Provider name and photo
+// - Specialty
+// - Rating (stars)
+// - Distance/location
+// - Next available slot
+// - "Select" button
+
+// Props: provider, onSelect()
+```
+
+**SlotSelector.jsx**
+```jsx
+// Date/time slot selection grid
+// Features:
+// - Date picker (next 7 days)
+// - Time slots grid (morning/afternoon/evening)
+// - Selected slot highlighting
+
+// Props: slots, selectedSlot, onSlotSelect(slot)
+```
+
+**PatientInfoForm.jsx**
+```jsx
+// Form for patient information
+// Fields:
+// - Full name (required)
+// - Phone number (required)  
+// - Email (required)
+// - Reason for visit (optional)
+// - Notes (optional)
+
+// Props: onSubmit(patientInfo), onBack()
+```
+
+**BookingCard.jsx**
+```jsx
+// Confirmation card after successful booking
+// Shows:
+// - Confirmation code (XXXX-1234)
+// - Provider details
+// - Date and time
+// - "Add to Calendar" button (generates .ics file)
+// - "Book Another" button
+
+// Props: appointment, onNewBooking()
+```
+
+### File: `frontend/src/components/Chat/ChatContainer.jsx`
+**Purpose**: Main chat UI with integrated booking flow
+
+```jsx
+// Integrated booking UI with all handlers memoized via useCallback
+// Renders based on bookingStep:
+// - 'idle': Normal chat interface
+// - 'location': <LocationPermissionModal /> (shows immediately)
+// - 'providers': List of <ProviderCard /> with error handling
+// - 'slots': <SlotSelector /> with loading/empty states
+// - 'patientInfo': <PatientInfoForm />
+// - 'confirmed': Booking complete (confirmation added to chat)
+
+// Flow:
+// User message → Backend returns metadata.intent='booking' → startBooking()
+// → location modal (immediate) → providers → slots → patientInfo
+// → book → confirmation message in chat with special styling
+
+// Booking confirmation is added to chat messages:
+addMessage({
+  role: 'assistant',
+  content: `🎉 Appointment Confirmed!\n\nProvider: ...`,
+  metadata: { type: 'booking_confirmation', confirmation_code }
+})
+```
+
+### File: `frontend/src/components/Chat/MessageItem.jsx`
+**Purpose**: Renders individual chat messages with special booking confirmation styling
+
+```jsx
+// Detects metadata.type === 'booking_confirmation'
+// Renders booking confirmations with:
+// - Green-themed card styling
+// - Prominent confirmation code display
+// - Key/value details (provider, date, time, location)
+```
+
+### File: `frontend/src/features/landing/appointments/MyAppointmentsSection.jsx`
+**Purpose**: User's appointments displayed on landing page
+
+```jsx
+// Section on landing page showing booked appointments
+// Features:
+// - List of upcoming appointments
+// - Confirmation codes
+// - Cancel appointment button
+// - "No appointments yet" state
+// - Auto-refreshes on mount
 ```
 
 ### File: `frontend/src/hooks/useConversations.js`
@@ -893,6 +1343,206 @@ const api = axios.create({
 
 ---
 
+## AI APPOINTMENT BOOKING AGENT
+
+### Overview
+
+The AI Appointment Booking Agent is an intelligent scheduling system integrated into the Medical RAG Chatbot. It uses natural language processing to detect booking intent, extract medical specialties from user messages, and guide users through a seamless appointment booking flow.
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Intent Detection** | Keyword-based regex patterns detect booking intent (fast <5ms) |
+| **Specialty Extraction** | Automatically extracts medical specialty from user message |
+| **Provider Search** | Find healthcare providers by specialty and location |
+| **Real-time Slots** | View available appointment time slots |
+| **Anonymous Booking** | Session-based booking (no login required) |
+| **Calendar Export** | Download .ics files for calendar integration |
+| **Confirmation Codes** | Unique codes in XXXX-1234 format |
+| **Chat Confirmation** | Booking confirmation displayed in chat with special styling |
+
+### Booking Flow
+
+```
+User Message: "I want to book an appointment with a cardiologist"
+                    │
+                    ▼
+┌─────────────────────────────────────────────┐
+│  STEP 1: Intent Detection (ChatService)    │
+│  - Keyword regex matches booking phrases   │
+│  - Extracts: specialty, urgency            │
+│  - Fast: <5ms for detection                │
+│  - Returns: metadata.intent = 'booking'    │
+└─────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────┐
+│  STEP 2: Location Request                   │
+│  - LocationPermissionModal appears IMMEDIATELY│
+│  - Options: Geolocation / Enter city / Skip │
+│  - User provides location                   │
+└─────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────┐
+│  STEP 3: Provider Search                    │
+│  - POST /api/appointments/providers/search  │
+│  - Returns matching providers from DB       │
+│  - Display ProviderCard list                │
+└─────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────┐
+│  STEP 4: Slot Selection                     │
+│  - GET /api/appointments/providers/{id}/slots│
+│  - Display SlotSelector component           │
+│  - User selects date and time               │
+└─────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────┐
+│  STEP 5: Patient Information                │
+│  - PatientInfoForm appears                  │
+│  - Collects: name, phone, email, reason     │
+│  - User submits form                        │
+└─────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────────────┐
+│  STEP 6: Book & Confirm                     │
+│  - POST /api/appointments/book              │
+│  - Generate confirmation code (CARD-1234)   │
+│  - Add confirmation message to chat         │
+│  - Display with special green card styling  │
+│  - Option to download .ics calendar file    │
+└─────────────────────────────────────────────┘
+```
+
+### Intent Detection Keywords
+
+The system uses regex patterns to detect booking intent (defined in `chat_service.py`):
+
+| Pattern Type | Examples |
+|--------------|----------|
+| **Book Actions** | "book appointment", "schedule a visit", "make an appointment" |
+| **Need Doctor** | "need to see a doctor", "want to consult a specialist" |
+| **Find Provider** | "find a cardiologist", "looking for a dermatologist" |
+| **Specialty Suffix** | "see a neurologist", "consult a psychiatrist" |
+
+### Booking Modes
+
+The system supports two operation modes controlled by `BOOKING_MODE` environment variable:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `dummy` | Uses local MongoDB with seeded providers | Development/Testing |
+| `real_time` | Integrates with external APIs (Zocdoc, Healthgrades) | Production |
+
+### Dummy Providers (for Testing)
+
+Seed providers with: `.\venv\Scripts\python.exe -m scripts.seed_providers`
+
+The system includes 12 seeded providers for testing:
+
+| Provider | Specialty | Rating |
+|----------|-----------|--------|
+| Dr. Jane Smith | Cardiology | 4.8 |
+| Dr. Robert Williams | Cardiology | 4.5 |
+| Dr. Michael Jones | Dermatology | 4.6 |
+| Dr. Lisa Anderson | Dermatology | 4.8 |
+| Dr. Priya Patel | Neurology | 4.9 |
+| Dr. David Chen | Orthopedics | 4.7 |
+| Dr. Maria Garcia | Pediatrics | 4.9 |
+| Dr. Sarah Thompson | Psychiatry | 4.7 |
+| Dr. James Wilson | General Practice | 4.6 |
+| Dr. Amanda Lee | ENT | 4.8 |
+| Dr. Kevin Brown | Gastroenterology | 4.5 |
+| Dr. Emily Davis | Ophthalmology | 4.9 |
+
+### Session-based Authentication
+
+Appointments are tied to browser sessions via `X-Session-ID` header:
+- Session ID is auto-generated on first visit
+- Stored in `localStorage` 
+- Attached to all API requests via Axios interceptor
+- Enables anonymous booking without login
+
+### Files Added/Modified for Booking
+
+**New Backend Files:**
+| File | Purpose |
+|------|---------|
+| `app/services/appointment_service.py` | Core booking business logic |
+| `app/api/appointments.py` | REST API endpoints |
+| `app/prompts/__init__.py` | Prompt exports |
+| `app/prompts/booking_intent_prompts.py` | Intent detection prompts |
+| `scripts/seed_providers.py` | Seeds dummy provider data |
+| `scripts/setup_appointments_collection.py` | MongoDB setup |
+| `tests/test_booking_flow.py` | Integration tests |
+
+**Modified Backend Files:**
+| File | Changes |
+|------|---------|
+| `app/config.py` | Added booking config vars |
+| `app/main.py` | Added appointments router |
+| `app/services/chat_service.py` | Added intent detection |
+
+**New Frontend Files:**
+| File | Purpose |
+|------|---------|
+| `store/appointmentStore.js` | Zustand booking state |
+| `services/appointmentService.js` | API client functions |
+| `hooks/useBooking.js` | Booking logic hook |
+| `components/Booking/LocationPermissionModal.jsx` | Location input |
+| `components/Booking/ProviderCard.jsx` | Provider selection |
+| `components/Booking/SlotSelector.jsx` | Time slot grid |
+| `components/Booking/PatientInfoForm.jsx` | Patient form |
+| `components/Booking/BookingCard.jsx` | Confirmation card |
+| `features/landing/appointments/MyAppointmentsSection.jsx` | Appointments list |
+
+**Modified Frontend Files:**
+| File | Changes |
+|------|---------|
+| `services/api.js` | Added session ID interceptor |
+| `hooks/useChat.js` | Added booking intent trigger |
+| `components/Chat/ChatContainer.jsx` | Integrated booking UI |
+| `pages/landing/LandingPage.jsx` | Added appointments section |
+
+### Setup Instructions
+
+**1. Setup MongoDB Collection:**
+```bash
+cd backend
+python -m scripts.setup_appointments_collection
+```
+
+**2. Seed Dummy Providers:**
+```bash
+python -m scripts.seed_providers
+```
+
+**3. Configure Environment:**
+Add to `backend/.env`:
+```env
+# Booking Configuration
+BOOKING_MODE=dummy
+APPOINTMENT_TTL_DAYS=30
+MAX_APPOINTMENTS_PER_SESSION=10
+
+# For production (optional)
+# BOOKING_MODE=real_time
+# ZOCDOC_API_KEY=your-key
+# HEALTHGRADES_API_KEY=your-key
+```
+
+**4. Test Booking:**
+- Start the application
+- Type: "I need to see a cardiologist"
+- Follow the booking flow
+
+---
+
 ## API REFERENCE
 
 ### Chat Endpoints
@@ -964,6 +1614,130 @@ const api = axios.create({
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/health` | System health check |
+
+### Appointment Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/appointments/providers/search` | Search providers by specialty/location |
+| `GET` | `/api/appointments/providers/{id}/slots` | Get provider's available slots |
+| `POST` | `/api/appointments/book` | Book an appointment |
+| `GET` | `/api/appointments` | List user's appointments (by session) |
+| `DELETE` | `/api/appointments/{id}` | Cancel an appointment |
+
+**Search Providers Request:**
+```json
+{
+  "specialty": "cardiology",
+  "city": "New York",
+  "latitude": 40.7128,
+  "longitude": -74.0060
+}
+```
+
+**Search Providers Response:**
+```json
+{
+  "providers": [
+    {
+      "id": "507f1f77bcf86cd799439020",
+      "name": "Dr. Jane Smith",
+      "specialty": "Cardiology",
+      "rating": 4.8,
+      "location": "123 Medical Center, New York",
+      "distance_miles": 2.5,
+      "next_available": "2026-03-09 09:00 AM",
+      "photo_url": "https://..."
+    }
+  ]
+}
+```
+
+**Get Slots Response:**
+```json
+{
+  "provider_id": "507f1f77bcf86cd799439020",
+  "slots": [
+    {
+      "date": "2026-03-10",
+      "time": "09:00 AM",
+      "duration": 30,
+      "available": true
+    },
+    {
+      "date": "2026-03-10",
+      "time": "09:30 AM", 
+      "duration": 30,
+      "available": true
+    }
+  ]
+}
+```
+
+**Book Appointment Request:**
+```json
+{
+  "provider_id": "507f1f77bcf86cd799439020",
+  "slot": {
+    "date": "2026-03-10",
+    "time": "09:00 AM"
+  },
+  "patient_info": {
+    "name": "John Doe",
+    "phone": "+1-555-123-4567",
+    "email": "john@example.com",
+    "reason": "Annual checkup"
+  }
+}
+```
+
+**Book Appointment Response:**
+```json
+{
+  "appointment_id": "507f1f77bcf86cd799439030",
+  "confirmation_code": "CARD-5678",
+  "status": "confirmed",
+  "provider": {
+    "name": "Dr. Jane Smith",
+    "specialty": "Cardiology",
+    "location": "123 Medical Center, New York"
+  },
+  "slot": {
+    "date": "2026-03-10",
+    "time": "09:00 AM",
+    "duration": 30
+  },
+  "patient_info": {
+    "name": "John Doe",
+    "email": "john@example.com"
+  },
+  "created_at": "2026-03-08T14:30:00Z"
+}
+```
+
+**Get My Appointments Response:**
+```json
+{
+  "appointments": [
+    {
+      "id": "507f1f77bcf86cd799439030",
+      "confirmation_code": "CARD-5678",
+      "status": "confirmed",
+      "provider": {...},
+      "slot": {...},
+      "created_at": "2026-03-08T14:30:00Z"
+    }
+  ]
+}
+```
+
+**Cancel Appointment Response:**
+```json
+{
+  "message": "Appointment cancelled successfully",
+  "appointment_id": "507f1f77bcf86cd799439030"
+}
+```
 
 ---
 
@@ -1090,6 +1864,102 @@ User selects PDF
 └─────────────────┘
 ```
 
+### Appointment Booking Flow
+```
+User types: "I need to see a cardiologist"
+       │
+       ▼
+┌─────────────────┐
+│ Frontend: React │
+│ useChat hook    │
+└────────┬────────┘
+         │ POST /api/chat
+         ▼
+┌─────────────────┐
+│ ChatService     │
+│ detect_booking  │
+│ _intent()       │
+└────────┬────────┘
+         │ Ollama LLM
+         ▼
+┌─────────────────┐
+│ Returns:        │
+│ is_booking:true │
+│ specialty:      │
+│ "cardiology"    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Frontend:       │
+│ startBooking()  │
+│ Opens Location  │
+│ Modal           │
+└────────┬────────┘
+         │ User provides location
+         ▼
+┌─────────────────┐
+│ POST /api/      │
+│ appointments/   │
+│ providers/search│
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Appointment     │
+│ Service queries │
+│ MongoDB         │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Display         │
+│ ProviderCards   │
+└────────┬────────┘
+         │ User selects provider
+         ▼
+┌─────────────────┐
+│ GET /api/       │
+│ appointments/   │
+│ providers/{id}/ │
+│ slots           │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Display         │
+│ SlotSelector    │
+└────────┬────────┘
+         │ User selects slot
+         ▼
+┌─────────────────┐
+│ Display         │
+│ PatientInfoForm │
+└────────┬────────┘
+         │ User submits info
+         ▼
+┌─────────────────┐
+│ POST /api/      │
+│ appointments/   │
+│ book            │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Appointment     │
+│ Service:        │
+│ - Generate code │
+│ - Save to DB    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Display         │
+│ BookingCard     │
+│ CARD-5678       │
+└─────────────────┘
+```
+
 ---
 
 ## DATABASE SCHEMAS
@@ -1146,6 +2016,60 @@ User selects PDF
   response_time: Number,   // ms
   sources_count: Number,
   timestamp: Date
+}
+```
+
+**providers** (Appointment Booking)
+```javascript
+{
+  _id: ObjectId,
+  name: String,            // "Dr. Jane Smith"
+  specialty: String,       // "Cardiology"
+  location: String,        // "123 Medical Center, New York"
+  city: String,            // "New York"
+  rating: Number,          // 4.8
+  photo_url: String,       // Profile photo URL
+  phone: String,
+  email: String,
+  available_slots: [       // Pre-generated slots
+    {
+      date: String,        // "2026-03-10"
+      time: String,        // "09:00 AM"
+      duration: Number,    // 30 (minutes)
+      available: Boolean
+    }
+  ],
+  created_at: Date
+}
+```
+
+**appointments** (Appointment Booking)
+```javascript
+{
+  _id: ObjectId,
+  session_id: String,      // X-Session-ID header value (for anonymous users)
+  provider_id: ObjectId,
+  confirmation_code: String,  // "CARD-5678"
+  status: String,          // "confirmed" | "cancelled" | "completed"
+  slot: {
+    date: String,          // "2026-03-10"
+    time: String,          // "09:00 AM"
+    duration: Number       // 30
+  },
+  patient_info: {
+    name: String,
+    phone: String,
+    email: String,
+    reason: String
+  },
+  provider_snapshot: {     // Denormalized provider data at booking time
+    name: String,
+    specialty: String,
+    location: String
+  },
+  created_at: Date,
+  cancelled_at: Date,      // If cancelled
+  expires_at: Date         // TTL index for auto-cleanup
 }
 ```
 
@@ -1206,6 +2130,17 @@ PINECONE_INDEX_NAME=medical-rag
 # Ollama
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=tinyllama
+
+# AI Appointment Booking
+BOOKING_MODE=dummy                    # dummy | real_time
+APPOINTMENT_TTL_DAYS=30               # Auto-delete appointments after N days
+MAX_APPOINTMENTS_PER_SESSION=10       # Limit per anonymous session
+PROVIDER_SEARCH_RADIUS_MILES=25       # Search radius for providers
+
+# External Provider APIs (for real_time mode)
+ZOCDOC_API_KEY=                       # Optional: Zocdoc integration
+ZOCDOC_API_URL=https://api.zocdoc.com
+HEALTHGRADES_API_KEY=                 # Optional: Healthgrades integration
 
 # Optional
 USE_GPU=false
@@ -1302,7 +2237,18 @@ npm install
 npm run dev
 ```
 
-**4. Start Services:**
+**4. Setup Appointment Booking (Optional):**
+```bash
+cd backend
+
+# Setup MongoDB collections
+python -m scripts.setup_appointments_collection
+
+# Seed dummy providers
+python -m scripts.seed_providers
+```
+
+**5. Start Services:**
 ```bash
 # Terminal 1: MongoDB
 mongod
@@ -1363,6 +2309,36 @@ cd frontend && npm run dev
 | CORS errors | Check `CORS_ORIGINS` in `.env` includes frontend URL |
 | Pylance import errors | Select correct interpreter: `backend/venv/Scripts/python.exe` |
 
+### Booking-Specific Issues
+
+| Issue | Solution |
+|-------|----------|
+| No providers found | Run seed script: `python -m scripts.seed_providers` |
+| Booking intent not detected | Verify Ollama is running and responding |
+| Session ID errors | Clear localStorage and refresh browser |
+| Slots not loading | Check provider exists in MongoDB |
+| Confirmation code missing | Check `appointment_service.py` logs |
+| Appointments collection error | Run: `python -m scripts.setup_appointments_collection` |
+
+### Testing Booking Flow
+```bash
+# 1. Ensure MongoDB is running
+mongod
+
+# 2. Setup collections
+cd backend
+python -m scripts.setup_appointments_collection
+
+# 3. Seed test providers
+python -m scripts.seed_providers
+
+# 4. Run tests
+pytest tests/test_booking_flow.py -v
+
+# 5. Manual test
+# Start app and type: "I need to see a cardiologist"
+```
+
 ### Verifying Ollama Setup
 ```cmd
 ollama list                      # Show installed models
@@ -1373,6 +2349,62 @@ ollama ps                        # Show running models
 ---
 
 ## CHANGELOG
+
+### v2.1.0 (Booking Flow Fixes)
+- **FIX: Replaced LLM-based intent detection with keyword regex patterns** - Much faster and more reliable
+- **FIX: Removed prompt leaking** - Added clean_llm_response() to strip system prompt artifacts
+- **FIX: Timestamps now timezone-aware** - Changed from datetime.utcnow() to datetime.now(timezone.utc)
+- **IMPROVED: Provider list expanded** - Now includes 12 providers across 10 specialties
+- **IMPROVED: UI handling** - Better loading and empty state for provider list
+- **IMPROVED: API metadata** - ChatResponse now includes booking metadata field
+
+**Backend Files Modified:**
+- `app/services/chat_service.py` - Keyword-based booking detection, response cleanup
+- `app/services/mongodb_service.py` - Timezone-aware timestamps
+- `app/models/__init__.py` - Added ChatResponseMetadata model
+- `app/api/chat.py` - Returns metadata in response
+- `scripts/seed_providers.py` - Expanded to 12 providers
+
+**Frontend Files Modified:**
+- `components/Chat/ChatContainer.jsx` - Better loading/empty state for providers
+
+### v2.0.0 (AI Appointment Booking Agent)
+- **NEW: AI Appointment Booking Agent** - Natural language appointment scheduling
+- Provider search by specialty and location
+- Real-time availability slot selection
+- Anonymous session-based booking (no login required)
+- Calendar export (.ics) for appointments
+- Unique confirmation codes (XXXX-1234 format)
+- Supports dummy mode (local DB) and real-time mode (external APIs)
+
+**Backend Files Added:**
+- `app/services/appointment_service.py` - Booking business logic
+- `app/api/appointments.py` - REST API endpoints
+- `app/prompts/booking_intent_prompts.py` - Intent detection prompts
+- `scripts/seed_providers.py` - Dummy data seeding
+- `scripts/setup_appointments_collection.py` - MongoDB setup
+- `tests/test_booking_flow.py` - Integration tests
+
+**Frontend Files Added:**
+- `store/appointmentStore.js` - Zustand booking state
+- `services/appointmentService.js` - API client
+- `hooks/useBooking.js` - Booking workflow hook
+- `components/Booking/*` - 5 booking UI components
+- `features/landing/appointments/MyAppointmentsSection.jsx` - Appointments list
+
+**Files Modified:**
+- `app/config.py` - Added booking configuration
+- `app/main.py` - Added appointments router
+- `app/services/chat_service.py` - Added intent detection
+- `services/api.js` - Added session ID interceptor
+- `hooks/useChat.js` - Added booking trigger
+- `components/Chat/ChatContainer.jsx` - Integrated booking UI
+- `pages/landing/LandingPage.jsx` - Added appointments section
+
+**Documentation Added:**
+- `BOOKING_SETUP.md` - Comprehensive booking setup guide
+- `START_BOOKING.bat` - Windows startup script
+- Updated `README.md` with full booking documentation
 
 ### v1.0.0 (Initial Release)
 - Full-stack RAG chatbot implementation
