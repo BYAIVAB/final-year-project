@@ -3,6 +3,8 @@ Chat Service - Fast RAG Pipeline
 Optimized orchestration of retrieval + LLM generation
 
 CHANGES LOG:
+- v2.2: Auto-generate conversation titles from first message (ChatGPT-style)
+- v2.2: Smart severity detection for dynamic closings
 - v2.1: Added robust keyword-based booking intent detection
 - v2.1: Fixed prompt leaking issue with response cleanup
 - v2.1: Improved booking flow trigger mechanism
@@ -26,6 +28,61 @@ from rag.retrieval.retriever import retriever
 from rag.vectorstore.pinecone_store import pinecone_store
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================
+# AUTO-TITLE GENERATION (ChatGPT-style)
+# ============================================
+def generate_conversation_title(message: str, max_length: int = 35) -> str:
+    """
+    Generate a concise conversation title from the first user message.
+    Similar to how ChatGPT/Claude names conversations.
+    
+    Args:
+        message: First user message
+        max_length: Maximum title length
+        
+    Returns:
+        A clean, concise title
+    """
+    if not message:
+        return "New Chat"
+    
+    # Clean up the message
+    title = message.strip()
+    
+    # Remove common question prefixes
+    prefixes_to_remove = [
+        r'^(what|how|why|when|where|who|can you|could you|please|tell me|explain|help me)\s+',
+        r'^(i want to|i need to|i\'d like to|i would like to)\s+',
+        r'^(is there|are there|do you|does it)\s+',
+    ]
+    
+    for pattern in prefixes_to_remove:
+        title = re.sub(pattern, '', title, flags=re.IGNORECASE)
+    
+    # Remove trailing question marks and punctuation
+    title = title.rstrip('?.!,;:')
+    
+    # Capitalize first letter
+    if title:
+        title = title[0].upper() + title[1:]
+    
+    # Truncate smartly at word boundary
+    if len(title) > max_length:
+        # Find last space before max_length
+        truncate_at = title.rfind(' ', 0, max_length - 3)
+        if truncate_at > 10:  # Ensure we keep at least 10 chars
+            title = title[:truncate_at] + '...'
+        else:
+            title = title[:max_length - 3] + '...'
+    
+    # Fallback if title is too short or empty
+    if len(title) < 3:
+        return "New Chat"
+    
+    return title
+
 
 # ============================================
 # BOOKING INTENT PATTERNS (Keyword-based)
@@ -408,6 +465,13 @@ class ChatService:
                     }
                 )
                 
+                # Auto-generate title on first message (ChatGPT-style)
+                message_count = await mongodb_service.get_message_count(conversation_id)
+                if message_count <= 2:
+                    new_title = generate_conversation_title(message)
+                    await mongodb_service.update_conversation_title(conversation_id, new_title)
+                    logger.info(f"📝 Auto-titled conversation: {new_title}")
+                
                 timing["total"] = (time.time() - start_time) * 1000
                 logger.info(f"✅ Booking response in {timing['total']:.0f}ms")
                 
@@ -495,6 +559,13 @@ class ChatService:
             
             # Update conversation activity
             await mongodb_service.update_conversation_activity(conversation_id)
+            
+            # Auto-generate title on first message (ChatGPT-style)
+            message_count = await mongodb_service.get_message_count(conversation_id)
+            if message_count <= 2:  # First user + assistant message pair
+                new_title = generate_conversation_title(message)
+                await mongodb_service.update_conversation_title(conversation_id, new_title)
+                logger.info(f"📝 Auto-titled conversation: {new_title}")
             
             timing["save"] = (time.time() - save_start) * 1000
             

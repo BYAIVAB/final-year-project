@@ -77,6 +77,21 @@ class MongoDBService:
             {"$set": {"last_active": datetime.now(timezone.utc)}}
         )
     
+    async def update_conversation_title(self, conversation_id: str, title: str):
+        """Update conversation title"""
+        await self.db.conversations.update_one(
+            {"_id": ObjectId(conversation_id)},
+            {"$set": {"title": title}}
+        )
+        logger.info(f"Updated conversation {conversation_id} title to: {title}")
+    
+    async def get_message_count(self, conversation_id: str) -> int:
+        """Get count of messages in a conversation"""
+        count = await self.db.messages.count_documents(
+            {"conversation_id": ObjectId(conversation_id)}
+        )
+        return count
+    
     # Messages
     async def save_message(
         self,

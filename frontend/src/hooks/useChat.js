@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useChatStore } from '../store/chatStore'
 import useAppointmentStore from '../store/appointmentStore'
 import { chatService } from '../services/chatService'
+import { conversationService } from '../services/conversationService'
 import { useSound } from './useSound'
 
 export const useChat = (conversationId) => {
@@ -13,7 +14,8 @@ export const useChat = (conversationId) => {
     setLoading,
     isTyping,
     setTyping,
-    setError
+    setError,
+    setConversations
   } = useChatStore()
   
   const { startBooking } = useAppointmentStore()
@@ -80,6 +82,29 @@ export const useChat = (conversationId) => {
           extracted_slots: response.metadata?.extracted_slots
         }
       })
+
+      // ============================================
+      // LLM-BASED TITLE GENERATION (ChatGPT/Claude-style)
+      // Generate title after first substantive message
+      // ============================================
+      const currentMessageCount = messages.length + 2 // +2 for user msg and assistant response just added
+      if (currentMessageCount <= 4) {
+        // Only generate title for new conversations (first few messages)
+        try {
+          await conversationService.generateTitle(conversationId)
+        } catch (e) {
+          console.warn('Failed to generate title:', e)
+          // Non-critical, continue
+        }
+      }
+
+      // Refresh conversations to show updated title in sidebar
+      try {
+        const updatedConversations = await conversationService.getAll()
+        setConversations(updatedConversations || [])
+      } catch (e) {
+        console.warn('Failed to refresh conversations:', e)
+      }
 
       playMessageSent()
     } catch (error) {

@@ -119,6 +119,13 @@ class DocumentUploadResponse(BaseModel):
     timing: Optional[Dict] = None
 
 
+# Title Generation Models
+class GenerateTitleResponse(BaseModel):
+    """Response for LLM-based title generation"""
+    title: str
+    conversation_id: str
+
+
 # Health Models
 class HealthResponse(BaseModel):
     status: str

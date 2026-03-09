@@ -32,5 +32,14 @@ export const conversationService = {
    */
   delete: async (id) => {
     await api.delete(`/api/conversations/${id}`)
+  },
+
+  /**
+   * Generate a title for a conversation using LLM (ChatGPT/Claude-style)
+   * Call this after the first substantive user message
+   */
+  generateTitle: async (id) => {
+    const response = await api.post(`/api/conversations/${id}/generate-title`)
+    return response.data
   }
 }
