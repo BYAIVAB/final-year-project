@@ -2,7 +2,7 @@
 
 > **LLM CONTEXT DOCUMENT**: This README is specifically designed to provide AI/LLM systems complete understanding of the entire codebase, architecture, and operational flows. Every file, folder, function, and data flow is documented comprehensively.
 
-**Version:** 2.2 | **Last Updated:** March 9, 2026
+**Version:** 2.3 | **Last Updated:** March 9, 2026
 
 ---
 
@@ -2278,6 +2278,58 @@ cd frontend && npm run dev
 ---
 
 ## CHANGELOG & RECENT UPDATES
+
+### Version 2.3 - March 9, 2026
+
+#### ✨ New Features
+
+**1. LLM-Based Conversation Title Generation (ChatGPT/Claude-Style)**
+- **Feature:** Automatic intelligent naming of sidebar conversations using LLM
+- **How It Works:**
+  - After first substantive message, calls LLM to generate 3-6 word title
+  - Skips generic greetings ("Hi", "Hello") to find meaningful content
+  - Booking intents → Fast-path: `"Book: Cardiologist"`, `"Book: Dentist"`
+  - Medical queries → Descriptive: `"Preventing Type 2 Diabetes"`, `"Mental Health Support"`
+- **API Endpoint:** `POST /api/conversations/{id}/generate-title`
+- **Files Modified:**
+  - `backend/app/api/conversations.py` - New endpoint with LLM prompt builder, JSON parsing
+  - `backend/app/models/__init__.py` - Added `GenerateTitleResponse` model
+  - `frontend/src/services/conversationService.js` - Added `generateTitle()` function
+  - `frontend/src/hooks/useChat.js` - Calls title generation after first messages
+
+**2. "Why Trust Our AI?" Section (Replaces Testimonials)**
+- **Feature:** New landing page section showcasing trust, security, and technical capabilities
+- **Sections:**
+  - 📊 **Live Stats** - Animated counters (50,000+ queries, 3.2s response time, etc.)
+  - 🛡️ **Trust Features** - 4 glassmorphism cards:
+    - HIPAA-Compliant Security
+    - Advanced RAG Technology
+    - Complete Transparency
+    - Privacy by Design
+  - ⚡ **Technical Capabilities** - Document Processing, Dual Retrieval, Source Attribution, Real-Time Analysis
+  - 🔒 **Privacy Statement** - Green badge with lock icon
+- **Visual Style:** Glassmorphism, gradient orbs, hover glow effects
+- **Files Created:**
+  - `frontend/src/features/landing/trust/components/TrustSection.jsx`
+  - `frontend/src/features/landing/trust/index.js`
+- **Files Modified:**
+  - `frontend/src/features/landing/index.js` - Export `TrustSection` instead of `TestimonialsSection`
+  - `frontend/src/pages/landing/LandingPage.jsx` - Import and render `TrustSection`
+
+#### 📁 Files Modified Summary (v2.3)
+
+| File | Changes |
+|------|---------||
+| `backend/app/api/conversations.py` | LLM title generation endpoint, prompt builder, JSON parsing |
+| `backend/app/models/__init__.py` | Added `GenerateTitleResponse` Pydantic model |
+| `frontend/src/services/conversationService.js` | Added `generateTitle(id)` API call |
+| `frontend/src/hooks/useChat.js` | Auto-generate title after first messages |
+| `frontend/src/features/landing/trust/components/TrustSection.jsx` | **NEW** - Trust & AI capabilities section |
+| `frontend/src/features/landing/trust/index.js` | **NEW** - Export barrel |
+| `frontend/src/features/landing/index.js` | Replaced testimonials export with trust section |
+| `frontend/src/pages/landing/LandingPage.jsx` | Updated imports to use TrustSection |
+
+---
 
 ### Version 2.2 - March 9, 2026
 

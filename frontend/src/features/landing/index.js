@@ -3,7 +3,7 @@ export { default as HeroSection } from './hero/components/HeroSection';
 export { default as DashboardGrid } from './dashboard/components/DashboardGrid';
 export { default as FeaturesSection } from './features/components/FeaturesSection';
 export { default as HowItWorksSection } from './how-it-works/components/HowItWorksSection';
-export { default as TestimonialsSection } from './testimonials/components/TestimonialsSection';
+export { default as TrustSection } from './trust/components/TrustSection';
 export { default as CTASection } from './cta/components/CTASection';
 export { MyAppointmentsSection } from './appointments';
 

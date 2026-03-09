@@ -5,7 +5,7 @@ import {
   DashboardGrid,
   FeaturesSection,
   HowItWorksSection,
-  TestimonialsSection,
+  TrustSection,
   CTASection,
   Footer,
   FloatingChatButton,
@@ -57,8 +57,8 @@ function LandingPage() {
         {/* How It Works Section - Component has its own id="how-it-works" */}
         <HowItWorksSection />
 
-        {/* Testimonials Section - Component has its own id="testimonials" */}
-        <TestimonialsSection />
+        {/* Trust Section - Why Trust Our AI? */}
+        <TrustSection />
 
         {/* CTA Section */}
         <CTASection />
