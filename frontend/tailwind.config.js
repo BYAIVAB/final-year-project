@@ -11,8 +11,10 @@ export default {
         'arc-navy': '#0A0E27',
         'arc-navy-light': '#1a1f3a',
         'arc-surface': '#252b48',
+        'arc-surface-secondary': '#1a1f3a',
         'arc-blue': '#3B82F6',
         'arc-blue-light': '#60A5FA',
+        'arc-accent': '#60A5FA',
         'arc-text': '#E5E7EB',
         'arc-text-muted': '#9CA3AF',
         'arc-border': '#374151',
@@ -32,6 +34,7 @@ export default {
         'pulse-dot': 'pulseDot 1.4s ease-in-out infinite',
         'float': 'float 6s ease-in-out infinite',
         'glow': 'glow 2s ease-in-out infinite alternate',
+        'thinking-bar': 'thinkingBar 2s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -53,6 +56,11 @@ export default {
         glow: {
           '0%': { boxShadow: '0 0 5px rgba(59, 130, 246, 0.5)' },
           '100%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.8)' },
+        },
+        thinkingBar: {
+          '0%': { width: '0%', marginLeft: '0%' },
+          '50%': { width: '60%', marginLeft: '20%' },
+          '100%': { width: '0%', marginLeft: '100%' },
         },
       },
     },

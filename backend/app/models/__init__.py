@@ -1,9 +1,9 @@
 """
 Pydantic Models - Request/Response Schemas
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # Conversation Models
@@ -19,6 +19,14 @@ class ConversationResponse(BaseModel):
     
     class Config:
         populate_by_name = True
+    
+    @field_serializer('created_at', 'last_active')
+    def serialize_datetime(self, dt: datetime) -> str:
+        """Serialize datetime with UTC timezone suffix for proper JS parsing"""
+        if dt.tzinfo is None:
+            # Assume UTC if no timezone
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
 
 
 # Message Models
@@ -32,6 +40,14 @@ class MessageResponse(BaseModel):
     
     class Config:
         populate_by_name = True
+    
+    @field_serializer('created_at')
+    def serialize_datetime(self, dt: datetime) -> str:
+        """Serialize datetime with UTC timezone suffix for proper JS parsing"""
+        if dt.tzinfo is None:
+            # Assume UTC if no timezone
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
 
 
 # Chat Models
@@ -83,6 +99,15 @@ class DocumentResponse(BaseModel):
     
     class Config:
         populate_by_name = True
+    
+    @field_serializer('created_at', 'completed_at')
+    def serialize_datetime(self, dt: Optional[datetime]) -> Optional[str]:
+        """Serialize datetime with UTC timezone suffix for proper JS parsing"""
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.strftime('%Y-%m-%dT%H:%M:%S') + 'Z'
 
 
 class DocumentUploadResponse(BaseModel):

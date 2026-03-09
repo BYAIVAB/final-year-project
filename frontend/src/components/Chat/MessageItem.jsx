@@ -1,5 +1,118 @@
 import React from 'react'
 
+// Helper to format timestamp - ALWAYS shows device local time
+const formatTimestamp = (timestamp) => {
+  if (!timestamp) {
+    // No timestamp? Use current device time
+    return new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+  }
+  
+  try {
+    // Parse the ISO timestamp
+    const date = new Date(timestamp)
+    
+    // Check if valid
+    if (isNaN(date.getTime())) {
+      return new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit', 
+        hour12: true
+      })
+    }
+    
+    // Format using browser's local timezone (device time)
+    // This automatically converts UTC to local time
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+  } catch {
+    return new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+  }
+}
+
+// Format response content with better structure
+const formatContent = (content) => {
+  if (!content) return content
+  
+  // Split by --- separator for closing message
+  const parts = content.split(/\n*---\n*/)
+  
+  if (parts.length > 1) {
+    // Has separator - main content + closing
+    let mainContent = parts[0]
+    const closing = parts.slice(1).join('')
+    
+    // Process main content paragraphs
+    const paragraphs = mainContent.split(/\n\n+/).filter(p => p.trim())
+    
+    return (
+      <div className="space-y-4">
+        {/* Main content */}
+        {paragraphs.map((para, idx) => {
+          // Check if it's a numbered point
+          const isNumbered = /^\d+\.\s/.test(para.trim())
+          
+          return (
+            <p key={idx} className={isNumbered ? 'pl-2 border-l-2 border-arc-accent/30' : ''}>
+              {renderWithBold(para.trim())}
+            </p>
+          )
+        })}
+        
+        {/* Closing section */}
+        <div className="mt-4 pt-3 border-t border-arc-border/30 text-sm">
+          <span className="text-arc-text-muted">{renderWithBold(closing.trim())}</span>
+        </div>
+      </div>
+    )
+  }
+  
+  // No separator - split into paragraphs
+  const paragraphs = content.split(/\n\n+/).filter(p => p.trim())
+  
+  if (paragraphs.length > 1) {
+    return (
+      <div className="space-y-3">
+        {paragraphs.map((para, idx) => {
+          const isNumbered = /^\d+\.\s/.test(para.trim())
+          return (
+            <p key={idx} className={isNumbered ? 'pl-2 border-l-2 border-arc-accent/30' : ''}>
+              {renderWithBold(para.trim())}
+            </p>
+          )
+        })}
+      </div>
+    )
+  }
+  
+  return renderWithBold(content)
+}
+
+// Render text with **bold** markdown support
+const renderWithBold = (text) => {
+  if (!text) return text
+  
+  // Split by **text** pattern
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="text-arc-accent font-semibold">{part.slice(2, -2)}</strong>
+    }
+    return part
+  })
+}
+
 function MessageItem({ message }) {
   const isUser = message.role === 'user'
   const sources = message.metadata?.sources || []
@@ -53,8 +166,8 @@ function MessageItem({ message }) {
           </div>
         </div>
       ) : (
-        <div className="text-arc-text whitespace-pre-wrap">
-          {message.content}
+        <div className="text-arc-text whitespace-pre-wrap leading-relaxed">
+          {formatContent(message.content)}
         </div>
       )}
 
@@ -87,7 +200,7 @@ function MessageItem({ message }) {
 
       {/* Timestamp */}
       <div className="text-xs text-arc-text-muted mt-2">
-        {new Date(message.created_at).toLocaleTimeString()}
+        {formatTimestamp(message.created_at)}
       </div>
     </div>
   )

@@ -12,6 +12,7 @@ import time
 import logging
 import json
 import re
+import random
 
 from ..services.mongodb_service import mongodb_service
 from ..services.metrics_service import metrics_service
@@ -65,6 +66,71 @@ SPECIALTY_PATTERNS = {
 URGENCY_PATTERNS = {
     'urgent': [r'\burgent\w*\b', r'\basap\b', r'\bemergenc\w*\b', r'\bimmediatel\w*\b', r'\btoday\b', r'\bnow\b'],
     'routine': [r'\broutine\b', r'\bcheck\s*up\b', r'\bannual\b', r'\bregular\b', r'\bfollow\s*up\b']
+}
+
+# ============================================
+# SEVERITY DETECTION FOR SMART CLOSINGS
+# ============================================
+SEVERITY_PATTERNS = {
+    # CRITICAL - Needs immediate professional help + emergency resources
+    'critical': [
+        r'\bsuicid\w*\b', r'\bkill\s*(my)?self\b', r'\bwant\s*to\s*die\b', r'\bend\s*(my)?\s*life\b',
+        r'\bself[\s-]?harm\b', r'\bcutting\s*(my)?self\b', r'\boverdos\w*\b',
+        r'\bheart\s*attack\b', r'\bstroke\b', r'\bcan\'?t\s*breathe?\b', r'\bchest\s*pain\b',
+        r'\bseizure\b', r'\bunconscious\b', r'\bbleeding\s*(heavily|a\s*lot)\b',
+        r'\bsevere\s*(pain|bleeding)\b', r'\banaphyla\w*\b', r'\ballergic\s*reaction\b',
+    ],
+    # SERIOUS - Medical concern, should see doctor
+    'serious': [
+        r'\bdepression\b', r'\banxiety\b', r'\bpanic\s*attack\b', r'\bmental\s*health\b',
+        r'\binfection\b', r'\bfever\b', r'\bvomit\w*\b', r'\bdiarrhea\b',
+        r'\bpain\b', r'\bhurt\w*\b', r'\binjur\w*\b', r'\bswelling\b', r'\brash\b',
+        r'\bdiagnos\w*\b', r'\bsymptom\w*\b', r'\bdisease\b', r'\bdisorder\b',
+        r'\bmedication\b', r'\bdrug\b', r'\bside\s*effect\b', r'\bdosage\b',
+        r'\bpregnant\b', r'\bpregnancy\b', r'\bcancer\b', r'\btumor\b',
+        r'\bdiabetes\b', r'\bhigh\s*blood\s*pressure\b', r'\bhypertension\b',
+        r'\basthma\b', r'\ballerg\w*\b', r'\barthritis\b', r'\bchronic\b',
+    ],
+    # MODERATE - Health info, good to know
+    'moderate': [
+        r'\bwhat\s*is\b', r'\bexplain\b', r'\btell\s*me\s*about\b', r'\bhow\s*(does|do)\b',
+        r'\btreatment\b', r'\btherapy\b', r'\bexercise\b', r'\bdiet\b', r'\bnutrition\b',
+        r'\bvitamin\b', r'\bsupplement\b', r'\bimmun\w*\b', r'\bvaccin\w*\b',
+        r'\bhealth\w*\b', r'\bwellness\b', r'\bfitness\b', r'\bweight\b',
+        r'\bsleep\b', r'\bstress\b', r'\brelax\w*\b', r'\bmeditat\w*\b',
+    ],
+    # GENERAL - Non-medical or very light
+    'general': [
+        r'\bhello\b', r'\bhi\b', r'\bhey\b', r'\bthanks?\b', r'\bthank\s*you\b',
+        r'\bbye\b', r'\bgoodbye\b', r'\bhow\s*are\s*you\b', r'\bwhat\s*can\s*you\s*do\b',
+    ]
+}
+
+# Closing messages based on severity
+CLOSING_MESSAGES = {
+    'critical': (
+        "\n\n---\n\n"
+        "🚨 **If you're in crisis or having thoughts of self-harm, please reach out immediately:**\n"
+        "• **Emergency:** Call 112 (India) or 911 (US)\n"
+        "• **NIMHANS Helpline:** 080-46110007\n"
+        "• **iCall:** 9152987821\n"
+        "• **Vandrevala Foundation:** 1860-2662-345\n\n"
+        "You're not alone. Professional help is available 24/7. 💙"
+    ),
+    'serious': (
+        "\n\n---\n\n"
+        "⚕️ **Please consult a healthcare professional** for proper diagnosis and treatment. "
+        "This information is for educational purposes only. Take care! 💙"
+    ),
+    'moderate': (
+        "\n\n---\n\n"
+        "💡 For personalized advice, consider consulting a healthcare provider. "
+        "Feel free to ask more questions! 💙"
+    ),
+    'general': (
+        "\n\n---\n\n"
+        "Feel free to ask if you have more questions! 💙"
+    )
 }
 
 
@@ -148,55 +214,136 @@ class ChatService:
             'next_question': next_question
         }
     
-    def clean_llm_response(self, response: str) -> str:
+    def detect_query_severity(self, query: str) -> str:
         """
-        Clean LLM response to remove prompt artifacts.
+        Detect the severity/clinical nature of a user query.
+        
+        Returns:
+            'critical' - Life-threatening, needs emergency help
+            'serious' - Medical concern, should consult doctor
+            'moderate' - Health info request
+            'general' - Non-medical or casual
+        """
+        if not query:
+            return 'general'
+        
+        query_lower = query.lower()
+        
+        # Check patterns in order of severity
+        for severity, patterns in SEVERITY_PATTERNS.items():
+            for pattern in patterns:
+                if re.search(pattern, query_lower, re.IGNORECASE):
+                    logger.info(f"Query severity detected: {severity} (pattern: {pattern})")
+                    return severity
+        
+        # Default to moderate for any health-related query
+        return 'moderate'
+    
+    def clean_llm_response(self, response: str, user_query: str = None) -> str:
+        """
+        Clean LLM response - remove artifacts, format with structure.
+        Produces clean, well-organized output like modern chatbots.
         
         Args:
             response: Raw LLM response
-            
-        Returns:
-            Cleaned response text
+            user_query: Original user query (for severity-based closing)
         """
         if not response:
-            return "I apologize, but I couldn't generate a response. Please try asking your question again."
-        
-        # Remove common prompt artifacts
-        artifacts_to_remove = [
-            r'^(GUIDELINE|GUIDELINES?):\s*[\s\S]*?(RECENT CONVERSATION|CURRENT QUESTION|User:)',
-            r'^(SYSTEM PROMPT|INSTRUCTIONS?):\s*[\s\S]*?(User:|RECENT)',
-            r'^(RECENT CONVERSATION|CONTEXT):\s*',
-            r'^\d+\.\s*(Provide clear|Always cite|If you don\'t know|Never provide|Use simple|Encourage)[\s\S]*?(?=\n\n|\Z)',
-            r'^Assistant:\s*',
-            r'^\[INST\][\s\S]*?\[/INST\]\s*',
-        ]
+            return "I'd be happy to help! Could you tell me more about what you'd like to know? 😊"
         
         cleaned = response.strip()
         
-        for pattern in artifacts_to_remove:
-            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+        # ==== STEP 1: Remove ALL AI: prefixes (critical!) ====
+        # Remove "AI:" at start of lines or after newlines
+        cleaned = re.sub(r'^AI:\s*', '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+        cleaned = re.sub(r'\n\s*AI:\s*', '\n\n', cleaned, flags=re.IGNORECASE)
         
-        # Remove leading newlines and clean up
+        # ==== STEP 2: Remove common prefixes ====
+        prefix_patterns = [
+            r'^Answer to the medical question:\s*',
+            r'^Answer to the question:\s*',
+            r'^Answer:\s*',
+            r'^Response:\s*',
+            r'^Here\'?s? (the|my|an?) (answer|response):\s*',
+            r'^(Sure!?|Certainly!?|Of course!?|Absolutely!?)\s*',
+            r'^(Yes,?\s*)?As a medical AI assistant,?\s*',
+            r'^As an AI,?\s*',
+            r'^I\'?d be happy to help[!\.\s]*',
+            r'^Great question[!\.\s]*',
+            r'^That\'s a great question[!\.\s]*',
+        ]
+        
+        for pattern in prefix_patterns:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+        
+        # ==== STEP 3: Remove meta-commentary ====
+        meta_patterns = [
+            r',?\s*as a medical AI assistant[,.]?\s*',
+            r',?\s*as an AI[,.]?\s*',
+            r'I (do\s+)?provide accurate,? evidence-based medical information[^.]*\.\s*',
+            r'Remember,?\s*you are not a replacement[^.]*\.\s*',
+            r',?\s*citing reliable sources[^.]*[,.]?\s*',
+        ]
+        
+        for pattern in meta_patterns:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+        
+        # ==== STEP 4: Structure into proper paragraphs ====
+        # Split into sentences/paragraphs
+        paragraphs = [p.strip() for p in cleaned.split('\n\n') if p.strip()]
+        
+        if len(paragraphs) == 1 and len(cleaned) > 200:
+            # Long single block - try to split into logical paragraphs
+            # Split at sentence boundaries after certain keywords
+            sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', cleaned)
+            
+            if len(sentences) >= 3:
+                # Group sentences into paragraphs of 2-3 sentences
+                structured = []
+                current_para = []
+                
+                for i, sent in enumerate(sentences):
+                    current_para.append(sent)
+                    # Start new paragraph every 2-3 sentences
+                    if len(current_para) >= 2 and (i < len(sentences) - 1):
+                        structured.append(' '.join(current_para))
+                        current_para = []
+                
+                if current_para:
+                    structured.append(' '.join(current_para))
+                
+                cleaned = '\n\n'.join(structured)
+        
+        # ==== STEP 5: Format numbered lists properly ====
+        # Ensure numbered points are on separate lines
+        cleaned = re.sub(r'(\d+\.)\s*([A-Z])', r'\n\n\1 \2', cleaned)
+        
+        # ==== STEP 6: Add section headers for long responses ====
         cleaned = cleaned.strip()
         
-        # If response still looks like it contains prompt content, extract actual answer
-        if 'GUIDELINE' in cleaned or 'RECENT CONVERSATION' in cleaned:
-            # Try to find actual response after prompt content
-            parts = re.split(r'(?:Assistant:|Response:|Answer:)\s*', cleaned, flags=re.IGNORECASE)
-            if len(parts) > 1:
-                cleaned = parts[-1].strip()
-            else:
-                # Last resort: take content after last newline block
-                lines = cleaned.split('\n\n')
-                for line in reversed(lines):
-                    if len(line.strip()) > 20 and not any(x in line for x in ['GUIDELINE', 'CONVERSATION', 'CONTEXT']):
-                        cleaned = line.strip()
-                        break
+        # Capitalize first letter
+        if cleaned and cleaned[0].islower():
+            cleaned = cleaned[0].upper() + cleaned[1:]
         
-        # Final cleanup
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        # Clean up extra whitespace
+        cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
+        cleaned = cleaned.strip()
         
-        return cleaned if len(cleaned) > 10 else "I'm here to help with your medical questions. Could you please rephrase your question?"
+        # ==== STEP 7: If too short, return friendly fallback ====
+        if len(cleaned) < 15:
+            return "I'd love to help with that! Could you share a bit more detail about what you'd like to know? 😊"
+        
+        # ==== STEP 8: Add severity-based closing ====
+        if len(cleaned) > 100 and '💙' not in cleaned:
+            cleaned = cleaned.rstrip('. \n')
+            
+            # Detect severity from user query
+            severity = self.detect_query_severity(user_query) if user_query else 'moderate'
+            closing = CLOSING_MESSAGES.get(severity, CLOSING_MESSAGES['general'])
+            
+            cleaned += closing
+        
+        return cleaned
     
     async def process_message(
         self,
@@ -321,8 +468,8 @@ class ChatService:
             llm_start = time.time()
             raw_response = generate_response(prompt)
             
-            # Step 5.5: Clean up LLM response (remove prompt artifacts)
-            response = self.clean_llm_response(raw_response)
+            # Step 5.5: Clean up LLM response (with severity-based closing)
+            response = self.clean_llm_response(raw_response, user_query=message)
             timing["llm_generation"] = (time.time() - llm_start) * 1000
             logger.info(f"LLM: {timing['llm_generation']:.0f}ms")
             

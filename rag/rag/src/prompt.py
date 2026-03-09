@@ -8,18 +8,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# System prompt optimized for medical domain
-SYSTEM_PROMPT = """You are a helpful medical AI assistant. Your role is to provide accurate, evidence-based medical information.
-
-GUIDELINES:
-1. Provide clear, concise answers
-2. Always cite sources when using document information
-3. If you don't know something, admit it honestly
-4. Never provide medical diagnoses or treatment recommendations
-5. Encourage users to consult healthcare professionals for medical advice
-6. Use simple language when possible, but be technically accurate
-
-Remember: You are an information assistant, not a replacement for professional medical consultation."""
+# Ultra-minimal prompt for tinyllama - NO instructions it can leak
+SYSTEM_PROMPT = """You are a helpful medical assistant."""
 
 
 def build_context_section(retrieved_docs: List[Dict]) -> str:
@@ -95,6 +85,7 @@ def build_complete_prompt(
 ) -> str:
     """
     Build complete prompt with all context.
+    SIMPLIFIED for better tinyllama compatibility.
     
     Args:
         user_query: Current user question
@@ -106,48 +97,27 @@ def build_complete_prompt(
     Returns:
         Complete formatted prompt
     """
-    prompt_parts = []
+    # Ultra-simple prompt structure for tinyllama
+    parts = []
     
-    # 1. System prompt
-    prompt_parts.append(system_prompt or SYSTEM_PROMPT)
-    prompt_parts.append("")
-    
-    # 2. Retrieved document context
+    # Add context if available (minimal)
     if retrieved_docs:
-        doc_context = build_context_section(retrieved_docs)
-        if doc_context:
-            prompt_parts.append(doc_context)
-            prompt_parts.append("")
+        context_text = ""
+        for doc in retrieved_docs[:2]:  # Max 2 docs
+            metadata = doc.get("metadata", {})
+            text = metadata.get("text", doc.get("text", ""))
+            if text:
+                context_text += text[:200] + " "
+        if context_text:
+            parts.append(f"Context: {context_text.strip()}")
+            parts.append("")
     
-    # 3. Retrieved chat history (semantic search)
-    if retrieved_chat:
-        chat_context_parts = ["RELEVANT PAST DISCUSSIONS:"]
-        for i, chat in enumerate(retrieved_chat, 1):
-            metadata = chat.get("metadata", {})
-            content = metadata.get("content", "")
-            similarity = chat.get("similarity", chat.get("score", 0))
-            
-            chat_context_parts.append(
-                f"[{i}] (Relevance: {similarity:.2f})\n{content[:200]}..."
-            )
-        
-        prompt_parts.append("\n".join(chat_context_parts))
-        prompt_parts.append("")
+    # Direct question/answer format
+    parts.append(f"User: {user_query}")
+    parts.append("")
+    parts.append("Assistant:")
     
-    # 4. Recent conversation buffer (last N turns)
-    if buffer_messages:
-        history = build_chat_history_section(buffer_messages)
-        if history:
-            prompt_parts.append(history)
-            prompt_parts.append("")
-    
-    # 5. Current query
-    prompt_parts.append("CURRENT QUESTION:")
-    prompt_parts.append(f"User: {user_query}")
-    prompt_parts.append("")
-    prompt_parts.append("Assistant:")
-    
-    return "\n".join(prompt_parts)
+    return "\n".join(parts)
 
 
 def build_simple_prompt(user_query: str, context: str = "") -> str:

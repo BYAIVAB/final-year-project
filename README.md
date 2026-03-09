@@ -2,6 +2,8 @@
 
 > **LLM CONTEXT DOCUMENT**: This README is specifically designed to provide AI/LLM systems complete understanding of the entire codebase, architecture, and operational flows. Every file, folder, function, and data flow is documented comprehensively.
 
+**Version:** 2.2 | **Last Updated:** March 9, 2026
+
 ---
 
 ## TABLE OF CONTENTS
@@ -18,6 +20,7 @@
 11. [Configuration Reference](#configuration-reference)
 12. [Dependencies](#dependencies)
 13. [Setup & Usage](#setup--usage)
+14. [Changelog & Recent Updates](#changelog--recent-updates)
 
 ---
 
@@ -42,6 +45,9 @@
 6. **Real-time Dashboard** - Analytics showing queries, response times, popular topics
 7. **Responsive UI** - Modern React interface with ARC AGI dark theme
 8. **AI Appointment Booking Agent** - Natural language appointment scheduling with provider search, slot selection, and confirmation
+9. **Smart Severity Detection** - Dynamic closing messages based on query urgency (critical/serious/moderate/general)
+10. **ChatGPT-Style Thinking Indicator** - Modern animated loading states with phases (Thinking → Analyzing → Generating)
+11. **Crisis Support Integration** - Automatic emergency helpline display for mental health crisis queries
 
 ---
 
@@ -2271,6 +2277,125 @@ cd frontend && npm run dev
 
 ---
 
+## CHANGELOG & RECENT UPDATES
+
+### Version 2.2 - March 9, 2026
+
+#### 🔧 Bug Fixes
+
+**1. Pinecone Connection Fix**
+- **Issue:** `.env` file was entirely commented out, causing Pinecone API key not to load
+- **Fix:** Uncommented all environment variables in `backend/.env`
+- **File:** `backend/.env`
+
+**2. Timestamp Timezone Fix**
+- **Issue:** Timestamps showed UTC time (e.g., 04:38 AM) instead of user's local device time (e.g., 10:11 PM IST)
+- **Root Cause:** Python datetime serialization missing `Z` suffix, causing JavaScript to interpret UTC timestamps as local time
+- **Fix:** Added `@field_serializer` decorators to Pydantic models to append `Z` suffix for proper UTC serialization
+- **Files Modified:**
+  - `backend/app/models/__init__.py` - Added serializers to `ConversationResponse`, `MessageResponse`, `DocumentResponse`
+
+#### ✨ New Features
+
+**3. ChatGPT-Style Thinking Indicator**
+- **Feature:** Modern loading animation while AI generates response
+- **Phases:** 🧠 Thinking... → 🔍 Analyzing your query... → ✨ Generating response...
+- **Includes:** Animated progress bar
+- **Files Modified:**
+  - `frontend/src/components/Chat/TypingIndicator.jsx` - Complete rewrite with phase animations
+  - `frontend/tailwind.config.js` - Added `thinking-bar` animation keyframes
+
+**4. Smart Severity Detection System**
+- **Feature:** Dynamically adjusts closing messages based on query severity
+- **Severity Levels:**
+  | Level | Triggers | Closing Message |
+  |-------|----------|-----------------|
+  | **Critical** 🚨 | suicide, self-harm, heart attack, chest pain, can't breathe | Emergency helplines + crisis resources |
+  | **Serious** ⚕️ | depression, anxiety, symptoms, medication, diagnosis | "Please consult a healthcare professional..." |
+  | **Moderate** 💡 | what is, explain, diet, exercise, vitamins | "For personalized advice, consider consulting..." |
+  | **General** 💙 | hello, thanks, bye | "Feel free to ask..." |
+- **Files Modified:**
+  - `backend/app/services/chat_service.py` - Added `SEVERITY_PATTERNS`, `CLOSING_MESSAGES`, `detect_query_severity()`
+
+**5. Response Formatting Improvements**
+- **Feature:** Clean, structured output like modern chatbots
+- **Changes:**
+  - Removed all `AI:` prefixes from LLM responses
+  - Split long responses into readable paragraphs
+  - Numbered points get visual left-border accent
+  - **Bold text** markdown support
+  - Proper closing section with separator line
+- **Files Modified:**
+  - `backend/app/services/chat_service.py` - Enhanced `clean_llm_response()` with:
+    - AI: prefix removal regex
+    - Paragraph structuring logic
+    - Severity-based closing selection
+  - `frontend/src/components/Chat/MessageItem.jsx` - Added:
+    - `formatContent()` - Splits content into styled paragraphs
+    - `renderWithBold()` - Renders **bold** markdown
+    - Visual separator for closing section
+
+#### 🎨 UI/UX Improvements
+
+**6. Tailwind Theme Enhancements**
+- Added new color tokens:
+  - `arc-accent` - Accent color for highlights
+  - `arc-surface-secondary` - Secondary surface color
+- **File:** `frontend/tailwind.config.js`
+
+#### 📁 Files Modified Summary
+
+| File | Changes |
+|------|---------|
+| `backend/.env` | Uncommented all configuration variables |
+| `backend/app/models/__init__.py` | Added datetime serializers with UTC `Z` suffix |
+| `backend/app/services/chat_service.py` | Severity detection, AI: removal, structured formatting |
+| `frontend/src/components/Chat/TypingIndicator.jsx` | ChatGPT-style thinking animation |
+| `frontend/src/components/Chat/MessageItem.jsx` | Paragraph formatting, bold support |
+| `frontend/tailwind.config.js` | New animations and color tokens |
+
+#### 🧪 Testing the Changes
+
+**Test Severity Detection:**
+```
+Critical: "I'm having thoughts of suicide" → Shows emergency helplines
+Serious:  "What are symptoms of depression?" → Shows "consult healthcare professional"
+Moderate: "What is vitamin D good for?" → Shows "for personalized advice"
+General:  "Hello!" → Shows "feel free to ask"
+```
+
+**Test Timestamp:**
+- Send a message and verify timestamp matches your device's local time
+- Check Network tab: `created_at` should end with `Z` (e.g., `2026-03-09T10:51:00Z`)
+
+**Test Thinking Indicator:**
+- Send any message
+- Should see animated "🧠 Thinking..." with progress bar
+- Phases cycle: Thinking → Analyzing → Generating
+
+---
+
+## KNOWN ISSUES
+
+1. **Pylance Import Warnings** - VS Code may show import errors for packages. These are IDE warnings, not runtime errors. Select correct Python interpreter (`backend/venv/Scripts/python.exe`).
+
+2. **Browser Console Warnings** - `scrollbar-width` and `scrollbar-color` CSS properties not supported in older browsers. Non-breaking.
+
+---
+
+## CONTRIBUTING
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+---
+
+**Built with ❤️ for Medical AI Assistance**
+
+
 ## TIMING EXPECTATIONS
 
 | Operation | Expected Time |
@@ -2349,6 +2474,60 @@ ollama ps                        # Show running models
 ---
 
 ## CHANGELOG
+
+### v2.3.0 (UI Scrolling & Booking Flow Fixes)
+- **FIX: Landing page now scrollable** - Removed `overflow: hidden` from global CSS that blocked all scrolling
+- **FIX: Booking modal now appears correctly** - Fixed metadata flow from backend to frontend for booking intent detection
+- **NEW: Enhanced scrollbar styling** - Always-visible blue gradient scrollbar on all scrollable areas
+- **IMPROVED: Appointments section moved to top** - Now appears right after Hero section on landing page
+- **IMPROVED: Chat container scrolling** - Messages area now has persistent scrollbar with `scrollbarGutter: stable`
+- **CLEANED: Removed debug logging** - Production-ready code without console spam
+
+**Files Modified:**
+
+1. **`frontend/src/styles/globals.css`**:
+   - Changed `html, body, #root { overflow: hidden }` → `overflow-y: auto` for scrolling
+   - Enhanced scrollbar styling with blue gradient (`linear-gradient(180deg, #3B82F6, #2563eb)`)
+   - Added Firefox scrollbar support (`scrollbar-width: auto; scrollbar-color`)
+
+2. **`frontend/src/pages/landing/LandingPage.jsx`**:
+   - Removed `overflow-x-hidden` from root container
+   - Moved `<MyAppointmentsSection />` to appear right after `<HeroSection />`
+
+3. **`frontend/src/components/Layout/MainLayout.jsx`**:
+   - Changed to `fixed inset-0` layout with proper flex structure
+   - Header now `flex-shrink-0` to prevent collapse
+
+4. **`frontend/src/components/Chat/ChatContainer.jsx`**:
+   - Messages area now uses `overflow-y-scroll` with `scrollbarGutter: stable`
+   - Removed debug panel from UI
+
+5. **`frontend/src/components/Sidebar/Sidebar.jsx`**:
+   - Conversations list now uses `overflow-y-scroll` for always-visible scrollbar
+
+6. **`frontend/src/hooks/useChat.js`**:
+   - Booking intent detection working: checks `response.metadata?.intent === 'booking'`
+   - Calls `startBooking(extracted_slots)` on intent match
+
+7. **`frontend/src/store/appointmentStore.js`**:
+   - `startBooking()` sets `bookingInProgress: true, bookingStep: 'location'`
+
+8. **`frontend/src/features/landing/appointments/MyAppointmentsSection.jsx`**:
+   - Fixed filter to show future confirmed appointments only
+   - Removed debug useEffect logging
+
+**Scrolling Architecture:**
+```css
+/* Global scrolling now enabled */
+html, body { overflow-x: hidden; overflow-y: auto; }
+#root { min-height: 100%; }
+
+/* Scrollbar always visible */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #3B82F6, #2563eb); }
+```
+
+---
 
 ### v2.2.0 (Appointment Persistence & Landing Page Integration)
 - **NEW: Appointments persist after page refresh** - Uses Zustand persist middleware with localStorage
