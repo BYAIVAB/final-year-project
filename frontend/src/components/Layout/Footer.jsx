@@ -11,7 +11,7 @@ const Footer = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                 </svg>
                             </div>
-                            <span className="text-xl font-bold text-white">MedAI</span>
+                            <span className="text-xl font-bold text-white">MindEase</span>
                         </div>
                         <p className="text-slate-400 text-sm">
                             Advanced Retrieval-Augmented Generation for specialized medical knowledge and insights.
@@ -49,7 +49,7 @@ const Footer = () => {
 
                 <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
                     <p className="text-slate-500 text-sm">
-                        © {new Date().getFullYear()} MedAI Assistant. All rights reserved.
+                        © {new Date().getFullYear()} MindEase Assistant. All rights reserved.
                     </p>
                     <div className="flex gap-4">
                         <a href="#" className="text-slate-500 hover:text-white transition-colors">Twitter</a>

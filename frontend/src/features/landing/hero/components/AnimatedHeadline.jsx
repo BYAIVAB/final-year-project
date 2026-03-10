@@ -11,9 +11,9 @@ const AnimatedHeadline = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.2 }}
     >
-      <span className="block mb-2">Instant Medical</span>
+      <span className="block mb-2">Your AI Medical Assistant</span>
       <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400">
-        Knowledge &amp; {displayedText}
+        Book Doctors &amp; Get {displayedText}
       </span>
       <span className="animate-pulse ml-1 text-blue-400">|</span>
     </motion.h1>

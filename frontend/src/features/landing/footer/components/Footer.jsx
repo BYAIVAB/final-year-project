@@ -51,7 +51,7 @@ function Footer() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-arc-blue to-purple-500 flex items-center justify-center text-white font-bold text-sm">
                 M
               </div>
-              <span className="text-arc-text font-semibold">MedAI</span>
+              <span className="text-arc-text font-semibold">MindEase</span>
             </Link>
             <p className="text-arc-text-muted text-sm">
               AI-powered medical information retrieval for healthcare professionals.

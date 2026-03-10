@@ -54,7 +54,7 @@ const DashboardGrid = () => {
             </span>
           </div>
           <p className="text-slate-400">
-            Real-time performance and usage metrics of the MedAI Assistant
+            Real-time performance and usage metrics of the MindEase Assistant
             {lastUpdated && !loading && (
               <span className="text-slate-500 ml-2 text-sm">
                 • Updated {new Date(lastUpdated).toLocaleTimeString()}

@@ -19,7 +19,7 @@ const HeroSection = ({ onChatClick }) => {
             >
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-6">
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                MedAI Assistant 2.0 Now Live
+                MindEase Assistant 2.0 Now Live
               </div>
             </motion.div>
 

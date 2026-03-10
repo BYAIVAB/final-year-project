@@ -9,7 +9,7 @@ const testimonials = [
     institution: "Metro Health Systems"
   },
   {
-    quote: "MedAI Assistant cuts through the noise. When I need specific interactions for rare drugs on call, it provides exact citations in seconds.",
+    quote: "MindEase Assistant cuts through the noise. When I need specific interactions for rare drugs on call, it provides exact citations in seconds.",
     author: "James Chen, MD",
     role: "Attending Physician",
     institution: "St. Jude's Medical Center"
@@ -39,7 +39,7 @@ const TestimonialsSection = () => {
           Trusted by the Medical Community
         </h2>
         <p className="text-lg text-slate-400">
-          See how leading professionals are integrating MedAI into their daily clinical workflows.
+          See how leading professionals are integrating MindEase into their daily clinical workflows.
         </p>
       </div>
 

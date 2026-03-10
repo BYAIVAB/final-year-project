@@ -28,7 +28,7 @@ const CTASection = () => {
           </h2>
 
           <p className="text-lg text-slate-400 mb-10 max-w-2xl mx-auto">
-            Join thousands of medical professionals using MedAI Assistant to extract insights, verify information, and improve patient outcomes through the power of RAG architecture.
+            Join thousands of medical professionals using MindEase Assistant to extract insights, verify information, and improve patient outcomes through the power of RAG architecture.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
